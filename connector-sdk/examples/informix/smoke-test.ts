@@ -10,6 +10,7 @@ async function main() {
     database: requireEnv('INFORMIX_DATABASE'),
     username: requireEnv('INFORMIX_USER'),
     password: requireEnv('INFORMIX_PASSWORD'),
+    driverName: process.env.INFORMIX_DRIVER,
   })
 
   const context = {

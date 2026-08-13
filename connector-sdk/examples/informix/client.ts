@@ -8,6 +8,7 @@ export interface InformixConnectionConfig {
   username: string
   password: string
   protocol?: 'onsoctcp' | 'onsoctcpssl'
+  driverName?: string
 }
 
 export interface InformixField {
@@ -28,8 +29,9 @@ const SENSITIVE_NAME_PATTERN = /(password|passwd|secret|token|apikey|api_key|ssn
 
 function buildConnectionString(config: InformixConnectionConfig): string {
   const protocol = config.protocol ?? 'onsoctcp'
+  const driverName = config.driverName ?? 'IBM INFORMIX ODBC DRIVER'
   return [
-    `Driver={IBM INFORMIX ODBC DRIVER}`,
+    `Driver={${driverName}}`,
     `Host=${config.host}`,
     `Service=${config.port}`,
     `Server=${config.server}`,
@@ -90,27 +92,58 @@ export class InformixClient {
     }
   }
 
+  // Fetches tables, all their columns, and all their primary keys in three
+  // bulk queries instead of 1 + 2N — the N+1 version took 15+ minutes against
+  // a ~500-table database, this takes a few seconds.
   async listReadableObjects(): Promise<InformixObject[]> {
     const connection = await this.getConnection()
 
     const tables = (await connection.query(
-      `SELECT tabname, owner, tabid FROM systables
+      `SELECT tabid, tabname FROM systables
        WHERE tabtype = 'T' AND tabid > 99
        ORDER BY tabname`,
-    )) as Array<{ tabname: string; owner: string; tabid: number }>
+    )) as Array<{ tabid: number; tabname: string }>
 
-    const objects: InformixObject[] = []
+    const allColumns = (await connection.query(
+      `SELECT c.tabid, c.colname, c.coltype, c.colno
+       FROM syscolumns c
+       JOIN systables t ON t.tabid = c.tabid
+       WHERE t.tabtype = 'T' AND t.tabid > 99
+       ORDER BY c.tabid, c.colno`,
+    )) as Array<{ tabid: number; colname: string; coltype: number; colno: number }>
 
-    for (const table of tables) {
-      const columns = (await connection.query(
-        `SELECT colname, coltype, colno FROM syscolumns
-         WHERE tabid = ? ORDER BY colno`,
-        [table.tabid],
-      )) as Array<{ colname: string; coltype: number; colno: number }>
+    const allPrimaryKeyParts = (await connection.query(
+      `SELECT con.tabid, i.part1, i.part2, i.part3, i.part4, i.part5, i.part6, i.part7, i.part8
+       FROM sysconstraints con
+       JOIN sysindexes i ON i.idxname = con.idxname AND i.tabid = con.tabid
+       JOIN systables t ON t.tabid = con.tabid
+       WHERE con.constrtype = 'P' AND t.tabtype = 'T' AND t.tabid > 99`,
+    )) as Array<Record<string, number>>
 
-      const primaryKeyColumns = await this.getPrimaryKeyColumns(table.tabid)
+    const columnsByTable = new Map<number, Array<{ colname: string; coltype: number; colno: number }>>()
+    const colnoToNameByTable = new Map<number, Map<number, string>>()
+    for (const column of allColumns) {
+      if (!columnsByTable.has(column.tabid)) columnsByTable.set(column.tabid, [])
+      columnsByTable.get(column.tabid)!.push(column)
+      if (!colnoToNameByTable.has(column.tabid)) colnoToNameByTable.set(column.tabid, new Map())
+      colnoToNameByTable.get(column.tabid)!.set(column.colno, column.colname.trim())
+    }
 
-      objects.push({
+    const primaryKeyByTable = new Map<number, string[]>()
+    for (const row of allPrimaryKeyParts) {
+      const { tabid, ...parts } = row
+      const colnoToName = colnoToNameByTable.get(tabid)
+      if (!colnoToName) continue
+      const partColumnNumbers = Object.values(parts).filter((part): part is number => Boolean(part))
+      const names = partColumnNumbers
+        .map((part) => colnoToName.get(part))
+        .filter((name): name is string => Boolean(name))
+      if (names.length > 0) primaryKeyByTable.set(tabid, names)
+    }
+
+    return tables.map((table) => {
+      const columns = columnsByTable.get(table.tabid) ?? []
+      return {
         name: table.tabname.trim(),
         label: table.tabname.trim(),
         fields: columns.map((column) => {
@@ -123,36 +156,21 @@ export class InformixClient {
             sensitive: SENSITIVE_NAME_PATTERN.test(name) || undefined,
           }
         }),
-        primaryKey: primaryKeyColumns.length > 0 ? primaryKeyColumns : undefined,
-      })
-    }
-
-    return objects
+        primaryKey: primaryKeyByTable.get(table.tabid),
+      }
+    })
   }
 
-  private async getPrimaryKeyColumns(tabid: number): Promise<string[]> {
+  // `object` is validated by previewRows() against ^[a-zA-Z_][a-zA-Z0-9_]*$
+  // before this is called, so it's safe to interpolate directly. Binding it
+  // as a query parameter instead trips a driver bug (ODBC HY003 "Invalid
+  // application buffer type") in the Informix ODBC driver's string handling.
+  private async isReadableTable(object: string): Promise<boolean> {
     const connection = await this.getConnection()
-
-    const indexes = (await connection.query(
-      `SELECT i.part1, i.part2, i.part3, i.part4, i.part5, i.part6, i.part7, i.part8
-       FROM sysconstraints c
-       JOIN sysindexes i ON i.idxname = c.idxname AND i.tabid = c.tabid
-       WHERE c.tabid = ? AND c.constrtype = 'P'`,
-      [tabid],
-    )) as Array<Record<string, number>>
-
-    if (indexes.length === 0) return []
-
-    const columns = (await connection.query(
-      `SELECT colno, colname FROM syscolumns WHERE tabid = ?`,
-      [tabid],
-    )) as Array<{ colno: number; colname: string }>
-    const colnoToName = new Map(columns.map((column) => [column.colno, column.colname.trim()]))
-
-    const partColumnNumbers = Object.values(indexes[0]).filter((part): part is number => Boolean(part))
-    return partColumnNumbers
-      .map((part) => colnoToName.get(part))
-      .filter((name): name is string => Boolean(name))
+    const rows = (await connection.query(
+      `SELECT FIRST 1 tabid FROM systables WHERE TRIM(tabname) = '${object}' AND tabtype = 'T' AND tabid > 99`,
+    )) as Array<{ tabid: number }>
+    return rows.length > 0
   }
 
   async previewRows(object: string, options: { limit: number }): Promise<Array<Record<string, unknown>>> {
@@ -161,8 +179,7 @@ export class InformixClient {
     }
 
     const connection = await this.getConnection()
-    const validObjects = await this.listReadableObjects()
-    if (!validObjects.some((candidate) => candidate.name === object)) {
+    if (!(await this.isReadableTable(object))) {
       throw new Error(`Object "${object}" is not a readable table`)
     }
 
