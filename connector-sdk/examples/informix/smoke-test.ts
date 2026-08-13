@@ -29,9 +29,12 @@ async function main() {
   console.log(`discover(): found ${objects.length} table(s)`)
   console.log(objects.slice(0, 5))
 
-  if (objects.length > 0) {
-    const preview = await connector.preview(context, { object: objects[0].name, limit: 5 })
-    console.log(`preview("${objects[0].name}"):`, preview)
+  if (process.env.SKIP_PREVIEW !== '1') {
+    const previewObject = process.env.PREVIEW_OBJECT ?? objects[0]?.name
+    if (previewObject) {
+      const preview = await connector.preview(context, { object: previewObject, limit: 5 })
+      console.log(`preview("${previewObject}"):`, preview)
+    }
   }
 
   await client.close()

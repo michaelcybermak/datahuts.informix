@@ -1,0 +1,90 @@
+$ npx tsx connector-sdk/validate.ts connector-sdk/examples/informix/manifest.json
+{
+  "ok": true,
+  "connector": "informix-database",
+  "name": "Informix Database",
+  "version": "0.1.0",
+  "access": "read-only",
+  "transport": "database",
+  "checks": [
+    "manifest-shape",
+    "semantic-version",
+    "read-only-access",
+    "supported-transport",
+    "https-documentation"
+  ]
+}
+
+$ SKIP_PREVIEW=1 npx tsx connector-sdk/examples/informix/smoke-test.ts
+[audit] connector.test { ok: true }
+test(): { ok: true, message: 'Connected to Informix and read systables.' }
+discover(): found 539 table(s)
+[
+  {
+    name: 'acc_messages',
+    label: 'acc_messages',
+    fields: [ [Object], [Object] ],
+    primaryKey: undefined
+  },
+  {
+    name: 'accgroupmaster',
+    label: 'accgroupmaster',
+    fields: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object]
+    ],
+    primaryKey: [
+      'szareacode',
+      'szgrouptype',
+      'szgroupcode',
+      'szdetcode',
+      'szformat'
+    ]
+  },
+  {
+    name: 'accnew',
+    label: 'accnew',
+    fields: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    primaryKey: undefined
+  },
+  {
+    name: 'accountback',
+    label: 'accountback',
+    fields: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object]
+    ],
+    primaryKey: [ 'szareacode', 'szacccode' ]
+  },
+  {
+    name: 'accountmaster',
+    label: 'accountmaster',
+    fields: [
+      [Object], [Object], [Object],
+      [Object], [Object], [Object],
+      [Object], [Object], [Object],
+      [Object], [Object], [Object],
+      [Object], [Object], [Object],
+      [Object], [Object], [Object],
+      [Object]
+    ],
+    primaryKey: [ 'szacccode', 'szareacode' ]
+  }
+]
+
+(discover() output truncated to first 5 of 539 tables by smoke-test.ts's
+console.log(objects.slice(0, 5)) - full result set was returned and used
+internally, only the printed preview is capped.)
