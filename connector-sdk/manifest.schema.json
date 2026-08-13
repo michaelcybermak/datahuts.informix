@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://datahuts.com/schemas/connector-manifest.json",
+  "title": "datahuts Connector Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "version", "publisher", "access", "transport", "documentationUrl"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 80
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "publisher": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 80
+    },
+    "access": {
+      "const": "read-only"
+    },
+    "transport": {
+      "enum": ["https-api", "database", "private-agent"]
+    },
+    "documentationUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    }
+  }
+}

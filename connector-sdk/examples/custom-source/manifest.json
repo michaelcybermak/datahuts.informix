@@ -1,0 +1,9 @@
+{
+  "id": "acme-operations",
+  "name": "Acme Operations",
+  "version": "0.1.0",
+  "publisher": "Acme",
+  "access": "read-only",
+  "transport": "https-api",
+  "documentationUrl": "https://developers.acme.example/operations"
+}
