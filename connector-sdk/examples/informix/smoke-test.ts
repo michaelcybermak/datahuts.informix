@@ -27,7 +27,7 @@ async function main() {
 
   const objects = await connector.discover(context)
   console.log(`discover(): found ${objects.length} table(s)`)
-  console.log(objects.slice(0, 5))
+  console.log(JSON.stringify(objects.slice(0, 5), null, 2))
 
   if (process.env.SKIP_PREVIEW !== '1') {
     const previewObject = process.env.PREVIEW_OBJECT ?? objects[0]?.name
