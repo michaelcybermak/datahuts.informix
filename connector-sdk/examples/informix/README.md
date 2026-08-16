@@ -3,6 +3,8 @@
 Read-only connector for IBM Informix (tested against 9.4) using the `odbc`
 npm package and the IBM Informix ODBC driver (CSDK).
 
+**Publisher:** CyberMAK
+
 ## Prerequisites
 
 1. Install the IBM Informix Client SDK (CSDK) for your platform, which provides
@@ -57,9 +59,8 @@ pnpm exec tsx connector-sdk/validate.ts connector-sdk/examples/informix/manifest
   ssn, etc.) are marked `sensitive` in `discover()` and masked in `preview()`.
   Review this against your actual schema — name-based heuristics will miss
   columns that don't follow the convention.
-- Update `manifest.json` — set a real `publisher` and, once you have one, a
-  more specific `id`/`documentationUrl`, before submitting to Connector
-  Studio.
+- `manifest.json` has `publisher: "CyberMAK"` and `documentationUrl` pointing
+  at this README. Update `id` if you fork this for a different deployment.
 
 ## Coltype mapping caveat
 
