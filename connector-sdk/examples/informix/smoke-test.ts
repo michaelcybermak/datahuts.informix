@@ -30,10 +30,11 @@ async function main() {
   console.log(JSON.stringify(objects.slice(0, 5), null, 2))
 
   if (process.env.SKIP_PREVIEW !== '1') {
-    const previewObject = process.env.PREVIEW_OBJECT ?? objects[0]?.name
-    if (previewObject) {
-      const preview = await connector.preview(context, { object: previewObject, limit: 5 })
-      console.log(`preview("${previewObject}"):`, preview)
+    const previewObject = process.env.PREVIEW_OBJECT
+    const targets = previewObject ? objects.filter((o) => o.name === previewObject) : objects.slice(0, 5)
+    for (const object of targets) {
+      const preview = await connector.preview(context, { object: object.name, limit: 5 })
+      console.log(`preview("${object.name}"):`, JSON.stringify(preview, null, 2))
     }
   }
 

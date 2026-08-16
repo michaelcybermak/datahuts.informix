@@ -1,4 +1,4 @@
-$ npx tsx connector-sdk/validate.ts connector-sdk/examples/informix/manifest.json
+$ npx tsx ../../validate.ts manifest.json
 {
   "ok": true,
   "connector": "informix-database",
@@ -15,7 +15,7 @@ $ npx tsx connector-sdk/validate.ts connector-sdk/examples/informix/manifest.jso
   ]
 }
 
-$ SKIP_PREVIEW=1 npx tsx connector-sdk/examples/informix/smoke-test.ts
+$ npx tsx smoke-test.ts
 [audit] connector.test { ok: true }
 test(): { ok: true, message: 'Connected to Informix and read systables.' }
 discover(): found 539 table(s)
@@ -24,91 +24,328 @@ discover(): found 539 table(s)
     "name": "acc_messages",
     "label": "acc_messages",
     "fields": [
-      { "name": "message_code", "type": "string", "nullable": true },
-      { "name": "eng_message_str", "type": "string", "nullable": true }
+      {
+        "name": "message_code",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "eng_message_str",
+        "type": "string",
+        "nullable": true
+      }
     ]
   },
   {
     "name": "accgroupmaster",
     "label": "accgroupmaster",
     "fields": [
-      { "name": "szareacode", "type": "string", "nullable": false },
-      { "name": "szgrouptype", "type": "string", "nullable": true },
-      { "name": "szgroupcode", "type": "string", "nullable": true },
-      { "name": "szdetcode", "type": "string", "nullable": true },
-      { "name": "szformat", "type": "string", "nullable": false },
-      { "name": "ffactor", "type": "number", "nullable": false },
-      { "name": "szuserid", "type": "string", "nullable": false },
-      { "name": "dtupdatedate", "type": "date", "nullable": false }
+      {
+        "name": "szareacode",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szgrouptype",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szgroupcode",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szdetcode",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szformat",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "ffactor",
+        "type": "number",
+        "nullable": false
+      },
+      {
+        "name": "szuserid",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "dtupdatedate",
+        "type": "date",
+        "nullable": false
+      }
     ],
-    "primaryKey": ["szareacode", "szgrouptype", "szgroupcode", "szdetcode", "szformat"]
+    "primaryKey": [
+      "szareacode",
+      "szgrouptype",
+      "szgroupcode",
+      "szdetcode",
+      "szformat"
+    ]
   },
   {
     "name": "accnew",
     "label": "accnew",
     "fields": [
-      { "name": "szacccode", "type": "string", "nullable": false },
-      { "name": "szgl", "type": "string", "nullable": false },
-      { "name": "szsub", "type": "string", "nullable": false },
-      { "name": "szbr", "type": "string", "nullable": false },
-      { "name": "szdesc", "type": "string", "nullable": false },
-      { "name": "sznacccode", "type": "string", "nullable": false },
-      { "name": "szngl", "type": "string", "nullable": false },
-      { "name": "sznsub", "type": "string", "nullable": false },
-      { "name": "sznbr", "type": "string", "nullable": false }
+      {
+        "name": "szacccode",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szgl",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szsub",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szbr",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szdesc",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "sznacccode",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szngl",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "sznsub",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "sznbr",
+        "type": "string",
+        "nullable": false
+      }
     ]
   },
   {
     "name": "accountback",
     "label": "accountback",
     "fields": [
-      { "name": "szareacode", "type": "string", "nullable": true },
-      { "name": "szacccode", "type": "string", "nullable": true },
-      { "name": "szaccgroup", "type": "string", "nullable": true },
-      { "name": "szaccsubgroup", "type": "string", "nullable": true },
-      { "name": "szaccbranch", "type": "string", "nullable": true },
-      { "name": "szaccdesc", "type": "string", "nullable": true },
-      { "name": "szacctype", "type": "string", "nullable": false },
-      { "name": "cdirectacc", "type": "string", "nullable": true },
-      { "name": "cactiveflag", "type": "string", "nullable": true },
-      { "name": "cdncnflag", "type": "string", "nullable": false },
-      { "name": "szdnno", "type": "string", "nullable": false },
-      { "name": "szcnno", "type": "string", "nullable": false },
-      { "name": "szuserid", "type": "string", "nullable": false },
-      { "name": "dtupdatedate", "type": "date", "nullable": false }
+      {
+        "name": "szareacode",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szacccode",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccgroup",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccsubgroup",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccbranch",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccdesc",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szacctype",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "cdirectacc",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "cactiveflag",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "cdncnflag",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szdnno",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szcnno",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szuserid",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "dtupdatedate",
+        "type": "date",
+        "nullable": false
+      }
     ],
-    "primaryKey": ["szareacode", "szacccode"]
+    "primaryKey": [
+      "szareacode",
+      "szacccode"
+    ]
   },
   {
     "name": "accountmaster",
     "label": "accountmaster",
     "fields": [
-      { "name": "szareacode", "type": "string", "nullable": true },
-      { "name": "szacccode", "type": "string", "nullable": true },
-      { "name": "szaccgroup", "type": "string", "nullable": true },
-      { "name": "szaccsubgroup", "type": "string", "nullable": true },
-      { "name": "szaccbranch", "type": "string", "nullable": true },
-      { "name": "szaccdesc", "type": "string", "nullable": true },
-      { "name": "szacctype", "type": "string", "nullable": false },
-      { "name": "cdirectacc", "type": "string", "nullable": true },
-      { "name": "cactiveflag", "type": "string", "nullable": true },
-      { "name": "cdncnflag", "type": "string", "nullable": false },
-      { "name": "szdnno", "type": "string", "nullable": false },
-      { "name": "szcnno", "type": "string", "nullable": false },
-      { "name": "szuserid", "type": "string", "nullable": false },
-      { "name": "dtupdatedate", "type": "date", "nullable": false },
-      { "name": "szcostflag", "type": "string", "nullable": false },
-      { "name": "szpbflag", "type": "string", "nullable": false },
-      { "name": "szcurrency", "type": "string", "nullable": false },
-      { "name": "szcountry", "type": "string", "nullable": false },
-      { "name": "cdiflag", "type": "string", "nullable": false }
+      {
+        "name": "szareacode",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szacccode",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccgroup",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccsubgroup",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccbranch",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szaccdesc",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "szacctype",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "cdirectacc",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "cactiveflag",
+        "type": "string",
+        "nullable": true
+      },
+      {
+        "name": "cdncnflag",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szdnno",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szcnno",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szuserid",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "dtupdatedate",
+        "type": "date",
+        "nullable": false
+      },
+      {
+        "name": "szcostflag",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szpbflag",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szcurrency",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "szcountry",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "name": "cdiflag",
+        "type": "string",
+        "nullable": false
+      }
     ],
-    "primaryKey": ["szacccode", "szareacode"]
+    "primaryKey": [
+      "szacccode",
+      "szareacode"
+    ]
   }
 ]
-
-(discover() output truncated to first 5 of 539 tables by smoke-test.ts's
-console.log(objects.slice(0, 5)) - full result set was returned and used
-internally, only the printed output is capped. Row-level data is omitted
-here by SKIP_PREVIEW=1; preview() was separately verified to return real
-row values against accgroupmaster in local testing.)
+[audit] connector.preview { object: 'acc_messages', rows: 0 }
+preview("acc_messages"): []
+[audit] connector.preview { object: 'accgroupmaster', rows: 5 }
+preview("accgroupmaster"): [
+  { "szareacode": "<redacted>", "szgrouptype": "<redacted>", "szgroupcode": "<redacted>", "szdetcode": "<redacted>", "szformat": "<redacted>", "ffactor": 0, "szuserid": "<redacted>", "dtupdatedate": null },
+  // ...4 more rows, same shape, values redacted
+]
+[audit] connector.preview { object: 'accnew', rows: 0 }
+preview("accnew"): []
+[audit] connector.preview { object: 'accountback', rows: 0 }
+preview("accountback"): []
+[audit] connector.preview { object: 'accountmaster', rows: 5 }
+preview("accountmaster"): [
+  {
+    "szareacode": "<redacted>", "szacccode": "<redacted>", "szaccgroup": "<redacted>",
+    "szaccsubgroup": "<redacted>", "szaccbranch": "<redacted>", "szaccdesc": "<redacted>",
+    "szacctype": "<redacted>", "cdirectacc": "<redacted>", "cactiveflag": "<redacted>",
+    "cdncnflag": "<redacted>", "szdnno": null, "szcnno": null, "szuserid": "<redacted>",
+    "dtupdatedate": "<redacted>", "szcostflag": null, "szpbflag": null,
+    "szcurrency": null, "szcountry": null, "cdiflag": null
+  },
+  // ...4 more rows, same shape, values redacted
+]
