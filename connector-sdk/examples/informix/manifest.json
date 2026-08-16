@@ -2,8 +2,8 @@
   "id": "informix-database",
   "name": "Informix Database",
   "version": "0.1.0",
-  "publisher": "Change Me",
+  "publisher": "CyberMAK",
   "access": "read-only",
   "transport": "database",
-  "documentationUrl": "https://www.ibm.com/docs/en/informix-servers"
+  "documentationUrl": "https://github.com/michaelcybermak/datahuts.informix/blob/main/connector-sdk/examples/informix/README.md"
 }
