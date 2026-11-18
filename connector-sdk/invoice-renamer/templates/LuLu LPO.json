@@ -1,0 +1,403 @@
+{
+  "name": "LuLu LPO",
+  "identify": [
+    "LuLu",
+    "PURCHASE ORDER",
+    "Purchase Order #"
+  ],
+  "regions": [
+    {
+      "name": "po_number",
+      "kind": "field",
+      "box": [
+        0.455,
+        0.152,
+        0.56,
+        0.176
+      ],
+      "type": "number",
+      "required": true,
+      "pattern": "\\d{8,12}",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "order_date",
+      "kind": "field",
+      "box": [
+        0.088,
+        0.166,
+        0.152,
+        0.187
+      ],
+      "type": "date",
+      "required": true,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "due_date",
+      "kind": "field",
+      "box": [
+        0.225,
+        0.166,
+        0.29,
+        0.187
+      ],
+      "type": "date",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "delivery_to",
+      "kind": "field",
+      "box": [
+        0.088,
+        0.207,
+        0.27,
+        0.226
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "supplier_code",
+      "kind": "field",
+      "box": [
+        0.66,
+        0.166,
+        0.716,
+        0.187
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "total_gross",
+      "kind": "field",
+      "box": [
+        0.85,
+        0.399,
+        0.965,
+        0.418
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "last",
+      "label": "Total Gross:",
+      "label_pos": [
+        0.677,
+        0.4015
+      ]
+    },
+    {
+      "name": "total_invoice_cost",
+      "kind": "field",
+      "box": [
+        0.85,
+        0.437,
+        0.965,
+        0.459
+      ],
+      "type": "amount",
+      "required": true,
+      "pattern": "",
+      "page": "last",
+      "label": "Total Invoice Cost:",
+      "label_pos": [
+        0.677,
+        0.4394
+      ]
+    },
+    {
+      "name": "currency",
+      "kind": "field",
+      "box": [
+        0.9,
+        0.46,
+        0.965,
+        0.477
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "last",
+      "label": "Currency:",
+      "label_pos": [
+        0.6773,
+        0.462
+      ]
+    },
+    {
+      "name": "item",
+      "kind": "column",
+      "box": [
+        0.019,
+        0.318,
+        0.045,
+        0.336
+      ],
+      "type": "number",
+      "required": true,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "article",
+      "kind": "column",
+      "box": [
+        0.045,
+        0.318,
+        0.105,
+        0.336
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "supplier_ref",
+      "kind": "column",
+      "box": [
+        0.105,
+        0.318,
+        0.2,
+        0.336
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "brand",
+      "kind": "column",
+      "box": [
+        0.2,
+        0.318,
+        0.29,
+        0.336
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "description",
+      "kind": "column",
+      "box": [
+        0.29,
+        0.318,
+        0.51,
+        0.336
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "offer_info",
+      "kind": "column",
+      "box": [
+        0.51,
+        0.318,
+        0.615,
+        0.336
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "barcode",
+      "kind": "column",
+      "box": [
+        0.615,
+        0.318,
+        0.69,
+        0.336
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "quantity",
+      "kind": "column",
+      "box": [
+        0.69,
+        0.318,
+        0.728,
+        0.336
+      ],
+      "type": "amount",
+      "required": true,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "uom",
+      "kind": "column",
+      "box": [
+        0.728,
+        0.318,
+        0.785,
+        0.336
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "gross_price",
+      "kind": "column",
+      "box": [
+        0.785,
+        0.318,
+        0.84,
+        0.336
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "net_price",
+      "kind": "column",
+      "box": [
+        0.84,
+        0.318,
+        0.893,
+        0.336
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "total_value",
+      "kind": "column",
+      "box": [
+        0.893,
+        0.318,
+        0.97,
+        0.336
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    }
+  ],
+  "stop_words": [
+    "Total Gross"
+  ],
+  "merge_wrapped": true,
+  "to_page_end": true,
+  "anchor": {
+    "text": "LuLu",
+    "x": 0.004011876226320969,
+    "y": 0.12884706128545168
+  },
+  "table_head": {
+    "words": [
+      {
+        "text": "Item",
+        "x": 0.0235
+      },
+      {
+        "text": "Article",
+        "x": 0.062
+      },
+      {
+        "text": "Supplier",
+        "x": 0.1379
+      },
+      {
+        "text": "Brand",
+        "x": 0.23
+      },
+      {
+        "text": "Article",
+        "x": 0.3838
+      },
+      {
+        "text": "Offer Pack/",
+        "x": 0.5336
+      },
+      {
+        "text": "Barcode",
+        "x": 0.6301
+      },
+      {
+        "text": "Quantity",
+        "x": 0.6906
+      },
+      {
+        "text": "UOM",
+        "x": 0.7512
+      },
+      {
+        "text": "Gross",
+        "x": 0.8083
+      },
+      {
+        "text": "Net",
+        "x": 0.8674
+      },
+      {
+        "text": "Total",
+        "x": 0.9182
+      }
+    ],
+    "y": 0.2989
+  },
+  "sample": "D:\\Work\\AAW\\New Processes\\FMCG Ordering\\Lulu LPO\\LuLu Central Warehouse-KW.PDF"
+}

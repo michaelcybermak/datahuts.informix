@@ -21,8 +21,27 @@ renamed or moved. v1 (the renamer below) is kept on branch `invoice-renamer-v1`.
 5. *Test on sample*, then *Save template*.
 
 Boxes can be moved (drag) and resized (drag the corner); Delete removes one; Ctrl+wheel zooms.
-Templates are saved as JSON in `%APPDATA%\InvoiceExtractor\templates`; an AAW template is
-installed on first start.
+A box drawn as the wrong kind can be switched between Field and Table column in *Selected*.
+Templates are saved as JSON in `%APPDATA%\InvoiceExtractor\templates`; AAW and LuLu LPO
+templates are installed on first start.
+
+**Multi-page invoices** (PDFs):
+
+- Table lines are read from every page, in order, into the same CSV, with a `page` column.
+  On each page the table is found by its column headings (saved with the template), so it may
+  start higher on page 2 than on page 1. Reading stops at a *Table ends at* word.
+- *Table runs to the end of each page* (on by default): a column box drawn over one row still
+  reads the whole table, and invoices longer than the sample are complete.
+- Fields are read from the first page, or from the last page (*Read from: Last page*), e.g.
+  totals. Use ◀ ▶ to see other pages of the sample; a field drawn on the last page reads from it.
+- *Follows label*: the box moves with a printed label such as `Total Invoice Cost:`, for
+  values whose position changes with the number of lines.
+- Lines with nothing in the first column, or (when the table has number/amount/date columns)
+  nothing in any of those, are not new rows: they are wrapped text of the row above, or
+  stamps, notes and page footers.
+
+Tested on the 64 LuLu purchase orders in `FMCG Ordering\Lulu LPO` (1-3 pages, 1,227 lines):
+every line, column, PO number, date and total matches the PDFs' own text.
 
 **Run page**: scans folder, CSV folder, Run once or Watch. Each file gets `<scan name>.csv`
 with one row per table line and the header values repeated on every row (UTF-8 with BOM, so
@@ -41,8 +60,8 @@ Command line (also what the exe does when started with arguments):
     python extractor.py "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30
     InvoiceExtractor.exe "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30
 
-Limits: only page 1 of a PDF is read, and a table that runs onto page 2 is cut at the
-end of page 1.
+Limits: an invoice scanned as separate image files (one per page) is treated as separate
+invoices; scan multi-page invoices to one PDF.
 
 Build: `python build_exe.py` (InvoiceExtractor.exe) or `python build_exe.py renamer`.
 

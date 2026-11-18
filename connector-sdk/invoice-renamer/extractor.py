@@ -34,6 +34,7 @@ log = logging.getLogger("invoice_extractor")
 
 SCAN_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".pdf"}
 FIELD_TYPES = ["text", "number", "amount", "date"]
+PAGE_END = 0.985  # with to_page_end, table lines are read down to here (or a stop word)
 OCR_MAX_SIDE = 2000  # plenty for printed invoice text, and much faster than full size
 
 
@@ -106,16 +107,29 @@ def _pdf_words(page) -> list[Word]:
         tp.close()
 
 
-def load_page(path: Path, ocr: OcrEngine | None, need_words: bool = True) -> Page:
-    """Page 1 of an image or PDF, with its words (text layer for digital PDFs, else OCR)."""
+def page_count(path: Path) -> int:
+    if path.suffix.lower() != ".pdf":
+        return 1
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(str(path))
+    try:
+        return len(pdf)
+    finally:
+        pdf.close()
+
+
+def load_page(path: Path, ocr: OcrEngine | None, need_words: bool = True, index: int = 0) -> Page:
+    """One page (default the first) of an image or PDF, with its words
+    (text layer for digital PDFs, else OCR)."""
     if path.suffix.lower() == ".pdf":
         import pypdfium2 as pdfium
 
         pdf = pdfium.PdfDocument(str(path))
         try:
-            if len(pdf) == 0:
-                raise ValueError("PDF has no pages")
-            pg = pdf[0]
+            if len(pdf) <= index:
+                raise ValueError("PDF has no pages" if index == 0 else f"PDF has no page {index + 1}")
+            pg = pdf[index]
             img = pg.render(scale=200 / 72).to_pil().convert("RGB")
             words = _pdf_words(pg)
         finally:
@@ -141,6 +155,9 @@ class Region:
     type: str = "text"          # text | number | amount | date
     required: bool = False
     pattern: str = ""           # optional regex the value must contain, e.g. \d{5,10}
+    page: str = "first"         # fields: read from the "first" or the "last" page (e.g. totals)
+    label: str = ""             # fields: printed label the value sits next to; the box moves with it
+    label_pos: list[float] | None = None  # where that label was on the sample (x0, y0)
 
 
 @dataclass
@@ -150,7 +167,10 @@ class Template:
     regions: list[Region] = field(default_factory=list)
     stop_words: list[str] = field(default_factory=lambda: ["Total"])
     merge_wrapped: bool = True    # a row with an empty first column continues the row above
+    to_page_end: bool = True      # table runs to the bottom of each page (until a stop word);
+                                  # False = only as far down as the column boxes are drawn
     anchor: dict | None = None    # {"text":..., "x":..., "y":...} used to correct shifted scans
+    table_head: dict | None = None  # column headings above the table, to find it on every page
     sample: str = ""              # sample file the template was drawn on
 
     @property
@@ -210,6 +230,50 @@ def make_anchor(t: Template, words: list[Word]) -> dict | None:
     return None
 
 
+def make_table_head(t: Template, words: list[Word]) -> dict | None:
+    """Remember the line of column headings just above the table on the sample, so the table
+    can be found on other pages (page 2+ has no header block, so it starts higher)."""
+    cols = t.columns
+    if not cols:
+        return None
+    top = min(c.box[1] for c in cols)
+    left, right = min(c.box[0] for c in cols), max(c.box[2] for c in cols)
+    above = [w for w in words if w.cy < top and top - w.cy < 0.08 and w.x1 > left and w.x0 < right
+             and sum(ch.isalpha() for ch in w.text) >= 2]
+    if not above:
+        return None
+    med = float(np.median([w.h for w in above])) or 0.01
+    # headings may take two lines (e.g. "Storage / Condition"): keep the line with most words,
+    # the lowest one on a tie
+    lines = [[o for o in above if abs(o.cy - w.cy) < 0.6 * med] for w in above]
+    line = max(lines, key=lambda ln: (len(ln), max(o.cy for o in ln)))
+    return {"words": [{"text": w.text, "x": round(w.x0, 4)} for w in line],
+            "y": round(max(w.y1 for w in line), 4)}
+
+
+def find_table_head(words: list[Word], head: dict | None) -> tuple[float, float] | None:
+    """(dx, dy) of the heading line on this page compared to the sample, or None."""
+    if not head or not head.get("words"):
+        return None
+    need = min(2, len(head["words"]))
+    hits = []  # (y1 of the match, x shift)
+    for hw in head["words"]:
+        key = _norm(hw["text"])
+        for w in words:
+            if key and _norm(w.text) == key:
+                hits.append((w.y1, w.x0 - hw["x"]))
+    best = None
+    for y, _ in hits:  # the line where most heading words are found
+        same = [(yy, d) for yy, d in hits if abs(yy - y) < 0.01]
+        if len(same) >= need and (best is None or len(same) > len(best)):
+            best = same
+    if not best:
+        return None
+    y1 = float(np.median([y for y, _ in best]))
+    dx = float(np.median([d for _, d in best]))
+    return (dx, y1 - head["y"]) if abs(dx) < 0.15 else None
+
+
 def identify(words: list[Word], templates: list[Template]) -> Template | None:
     """The template whose identify words appear most on the page (at least one)."""
     page = _norm(" ".join(w.text for w in words))
@@ -223,8 +287,12 @@ def identify(words: list[Word], templates: list[Template]) -> Template | None:
 
 # --------------------------------------------------------------------------- extraction
 def _text_in(words: list[Word], box, dx: float = 0.0, dy: float = 0.0) -> list[tuple[float, float, float, str]]:
-    """Text inside a box: (cy, x0, height, text). Words crossing the box edge are cut by
-    character position, so a box over just the value of "OrderNbr - 1653270 MS" works."""
+    """Text inside a box: (cy, x0, height, text).
+
+    A piece of text crossing the box edge belongs whole to the box holding its middle, so a box
+    edge drawn a little off doesn't cut a number in two. Only text much wider than the box
+    (e.g. "OrderNbr - 1653270 MS" read as one piece, with a box over just the number) is cut
+    by character position."""
     x0, y0, x1, y1 = box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy
     out = []
     for w in words:
@@ -232,6 +300,10 @@ def _text_in(words: list[Word], box, dx: float = 0.0, dy: float = 0.0) -> list[t
             continue
         if w.x0 >= x0 and w.x1 <= x1:
             out.append((w.cy, w.x0, w.h, w.text))
+            continue
+        if (w.x1 - w.x0) <= 1.5 * (x1 - x0):  # about the box's size: all or nothing
+            if x0 <= w.cx <= x1:
+                out.append((w.cy, w.x0, w.h, w.text))
             continue
         n = len(w.text)
         step = (w.x1 - w.x0) / max(n, 1)
@@ -286,42 +358,104 @@ class Result:
     rows: list[dict] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
     source: str = ""
+    pages: int = 1
 
     @property
     def ok(self) -> bool:
         return not self.problems
 
 
-def apply_template(t: Template, words: list[Word]) -> Result:
-    res = Result(template=t.name)
-    dx = dy = 0.0
+def _shift(t: Template, words: list[Word]) -> tuple[float, float]:
+    """How far this page is shifted from the sample, measured on the anchor word."""
     if t.anchor and (a := find_anchor(words, t.anchor["text"])):
         dx, dy = a.x0 - t.anchor["x"], a.y0 - t.anchor["y"]
-        if abs(dx) > 0.15 or abs(dy) > 0.15:  # matched something else; don't trust it
-            dx = dy = 0.0
+        if abs(dx) <= 0.15 and abs(dy) <= 0.15:  # larger: matched something else
+            return dx, dy
+    return 0.0, 0.0
+
+
+def find_label(words: list[Word], label: str) -> Word | None:
+    """The word (text run) that starts with or equals the label text."""
+    key = _norm(label)
+    if not key:
+        return None
+    exact = [w for w in words if _norm(w.text) == key or _norm(w.text).rstrip(":") == key.rstrip(":")]
+    hits = exact or [w for w in words if _norm(w.text).startswith(key)]
+    return min(hits, key=lambda w: (w.y0, w.x0)) if hits else None
+
+
+def set_label_pos(r: Region, words: list[Word]) -> None:
+    """Record where the field's label is on the sample page (call when saving a template)."""
+    w = find_label(words, r.label) if r.label else None
+    r.label_pos = [round(w.x0, 4), round(w.y0, 4)] if w else None
+
+
+def needs_all_pages(t: Template) -> bool:
+    return bool(t.columns) or any(f.page == "last" for f in t.fields)
+
+
+def apply_template(t: Template, words: list[Word], more_pages: list[list[Word]] | None = None) -> Result:
+    """Header fields come from page 1 (or the last page, for fields set to it); table lines from
+    page 1 and every page in more_pages."""
+    res = Result(template=t.name)
+    dx, dy = _shift(t, words)
+    last = more_pages[-1] if more_pages else words
+    ldx, ldy = _shift(t, last) if more_pages else (dx, dy)
 
     for f in t.fields:
-        res.header[f.name] = clean_value(_join_lines(_text_in(words, f.box, dx, dy)), f.type, f.pattern)
+        src, fdx, fdy = (last, ldx, ldy) if f.page == "last" else (words, dx, dy)
+        if f.label and f.label_pos:
+            lab = find_label(src, f.label)
+            if lab is None:  # label not printed on this page: no value
+                res.header[f.name] = ""
+                if f.required:
+                    res.problems.append(f"{f.name} not found (label '{f.label}' missing)")
+                continue
+            fdx, fdy = lab.x0 - f.label_pos[0], lab.y0 - f.label_pos[1]
+        res.header[f.name] = clean_value(_join_lines(_text_in(src, f.box, fdx, fdy)), f.type, f.pattern)
         if f.required and not res.header[f.name]:
             res.problems.append(f"{f.name} not found")
 
     cols = t.columns
     if cols:
-        res.rows = _table_rows(t, cols, words, dx, dy)
+        top = min(c.box[1] for c in cols)
+        bottom = max(c.box[3] for c in cols)
+        pages = [words, *(more_pages or [])]
+        for n, page_words in enumerate(pages, 1):
+            head = find_table_head(page_words, t.table_head)
+            if head:  # headings found: the table starts right under them on this page
+                tdx, tdy = head
+                page_top = top + tdy
+                # page 1 keeps the drawn height; later pages may use the room up to the
+                # drawn bottom (the table starts higher there, the footer stays put)
+                page_bottom = bottom + tdy if n == 1 else max(bottom, bottom + tdy)
+            elif n == 1:
+                tdx, page_top, page_bottom = dx, top + dy, bottom + dy
+            elif t.table_head:
+                continue  # no headings on this page: no table here
+            else:  # template without saved headings: same place as page 1
+                tdx, page_top, page_bottom = dx, top + dy, bottom + dy
+            if t.to_page_end:
+                page_bottom = PAGE_END
+            rows, stopped = _table_rows(t, cols, page_words, tdx, page_top, page_bottom)
+            for r in rows:
+                r["page"] = n
+            res.rows += rows
+            if stopped:
+                break
         for c in cols:
             if c.required and not any(r.get(c.name) for r in res.rows):
                 res.problems.append(f"column {c.name} empty")
     return res
 
 
-def _table_rows(t: Template, cols: list[Region], words, dx, dy) -> list[dict]:
-    top = min(c.box[1] for c in cols) + dy
-    bottom = max(c.box[3] for c in cols) + dy
+def _table_rows(t: Template, cols: list[Region], words, dx, top, bottom) -> tuple[list[dict], bool]:
+    """Rows between top and bottom (page fractions). Also returns True if a stop word ended it."""
     left = min(c.box[0] for c in cols) + dx
     right = max(c.box[2] for c in cols) + dx
     inside = [w for w in words if top <= w.cy <= bottom and w.x1 > left and w.x0 < right]
     if not inside:
-        return []
+        return [], False
     # group words into printed lines
     inside.sort(key=lambda w: w.cy)
     med_h = float(np.median([w.h for w in inside])) or 0.01
@@ -339,28 +473,30 @@ def _table_rows(t: Template, cols: list[Region], words, dx, dy) -> list[dict]:
     for line in lines:
         line_text = _norm(" ".join(w.text for w in line))
         if stops and any(s in line_text for s in stops):
-            break
-        y0, y1 = min(w.y0 for w in line) - dy, max(w.y1 for w in line) - dy
+            return rows, True
+        y0, y1 = min(w.y0 for w in line), max(w.y1 for w in line)
         row = {}
         for c in cols:
             band = [c.box[0], y0, c.box[2], y1]
-            row[c.name] = clean_value(_join_lines(_text_in(line, band, dx, dy)), c.type, c.pattern)
+            row[c.name] = clean_value(_join_lines(_text_in(line, band, dx, 0.0)), c.type, c.pattern)
         if not any(row.values()):
             continue
         first = cols[0].name
-        if not row[first]:
-            # A line with no value in the first column is either wrapped text of the row above
-            # (directly under it) or a stamp / handwriting on the page: never a new row.
-            close = last_bottom is not None and (y0 + dy) - last_bottom < 1.2 * med_h
+        typed = [c.name for c in cols if c.type != "text"]
+        if not row[first] or (typed and not any(row[c] for c in typed)):
+            # A line with no value in the first column - or, when the table has number/amount/
+            # date columns, none in any of them - is wrapped text of the row above (directly
+            # under it), or a stamp, note or page footer: never a new row.
+            close = last_bottom is not None and y0 - last_bottom < 1.2 * med_h
             if t.merge_wrapped and rows and close:
                 for c in cols:
                     if c.type == "text" and row[c.name]:
                         rows[-1][c.name] = f"{rows[-1][c.name]} {row[c.name]}".strip()
-                last_bottom = y1 + dy
+                last_bottom = y1
             continue
         rows.append(row)
-        last_bottom = y1 + dy
-    return rows
+        last_bottom = y1
+    return rows, False
 
 
 # --------------------------------------------------------------------------- files
@@ -373,7 +509,7 @@ def write_csv(out_dir: Path, src: Path, t: Template, res: Result) -> Path:
     target = csv_path(out_dir, src)
     head = [f.name for f in t.fields]
     cols = [c.name for c in t.columns]
-    fieldnames = ["source_file", "template", *head, *cols]
+    fieldnames = ["source_file", "template", *head, *(["page"] if cols else []), *cols]
     rows = res.rows or [{}]
     tmp = target.with_suffix(".csv.tmp")
     with tmp.open("w", newline="", encoding="utf-8-sig") as f:  # BOM so Excel shows Arabic
@@ -389,7 +525,7 @@ def write_log(log_dir: Path, row: dict) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
     out = log_dir / "extract_log.csv"
     new = not out.exists()
-    fields = ["timestamp", "file", "template", "csv", "rows", "status", "detail", "seconds"]
+    fields = ["timestamp", "file", "template", "csv", "pages", "rows", "status", "detail", "seconds"]
     with out.open("a", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         if new:
@@ -425,12 +561,16 @@ def process_file(path: Path, templates: list[Template], ocr: OcrEngine, out_dir:
     started = time.time()
     page = load_page(path, ocr)
     t = identify(page.words, templates)
-    row = dict(file=path.name, rows=0)
+    row = dict(file=path.name, rows=0, pages=page_count(path))
     if t is None:
         row.update(status="no_template", detail="no template's identify words found on the page")
         return row
-    res = apply_template(t, page.words)
+    more = []
+    if needs_all_pages(t):  # the table may continue on later pages; totals may be on the last
+        more = [load_page(path, ocr, index=i).words for i in range(1, page_count(path))]
+    res = apply_template(t, page.words, more)
     res.source = page.source
+    res.pages = 1 + len(more)
     row.update(template=t.name, rows=len(res.rows), result=res,
                seconds=round(time.time() - started, 1))
     if not dry_run:

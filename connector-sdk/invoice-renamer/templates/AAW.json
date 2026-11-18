@@ -225,5 +225,42 @@
     "x": 0.08284789644012945,
     "y": 0.0405
   },
+  "table_head": {
+    "words": [
+      {
+        "text": "Item#",
+        "x": 0.0311
+      },
+      {
+        "text": "Lot Num l",
+        "x": 0.0906
+      },
+      {
+        "text": "LotExp.",
+        "x": 0.2071
+      },
+      {
+        "text": "IStoragel Case I",
+        "x": 0.2861
+      },
+      {
+        "text": "Description",
+        "x": 0.4712
+      },
+      {
+        "text": "I UM Quantity 1",
+        "x": 0.6369
+      },
+      {
+        "text": "Price",
+        "x": 0.7819
+      },
+      {
+        "text": "Amount",
+        "x": 0.8699
+      }
+    ],
+    "y": 0.351
+  },
   "sample": ""
 }

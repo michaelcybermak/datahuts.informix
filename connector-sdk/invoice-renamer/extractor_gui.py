@@ -200,6 +200,10 @@ class TemplateEditor(ctk.CTkFrame):
         self.photo = None
         self.drag = None  # (mode, start_x, start_y, original_box)
         self.loading = False
+        self.pages: dict[int, ex.Page] = {}  # sample pages read so far
+        self.page_index = 0
+        self.page_total = 0
+        self.page_path = ""
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -250,6 +254,12 @@ class TemplateEditor(ctk.CTkFrame):
         self.v_draw = tk.StringVar(value="Field")
         ctk.CTkSegmentedButton(bar, values=["Field", "Table column"], variable=self.v_draw,
                                height=32).pack(side="left")
+        nav = ctk.CTkFrame(bar, fg_color="transparent")
+        nav.pack(side="left", padx=(12, 0))
+        ctk.CTkButton(nav, text="◀", width=30, height=32, command=lambda: self.goto_page(-1)).pack(side="left")
+        self.l_pageno = ctk.CTkLabel(nav, text="Page –", width=78, font=self.app.f_body)
+        self.l_pageno.pack(side="left")
+        ctk.CTkButton(nav, text="▶", width=30, height=32, command=lambda: self.goto_page(1)).pack(side="left")
         self.v_words = tk.BooleanVar(value=True)
         ctk.CTkSwitch(bar, text="Show text", variable=self.v_words, font=self.app.f_body,
                       command=self.redraw).pack(side="left", padx=14)
@@ -308,6 +318,11 @@ class TemplateEditor(ctk.CTkFrame):
         self.v_merge = tk.BooleanVar(value=True)
         ctk.CTkSwitch(f, text="Join wrapped lines to the row above", variable=self.v_merge,
                       font=self.app.f_body).pack(**P, pady=(10, 0))
+        self.v_to_end = tk.BooleanVar(value=True)
+        ctk.CTkSwitch(f, text="Table runs to the end of each page", variable=self.v_to_end,
+                      font=self.app.f_body, command=self._mark_dirty).pack(**P, pady=(8, 0))
+        hint("On: lines are read down the whole page until a 'Table ends at' word, so longer "
+             "invoices than the sample are complete. Off: only as far down as the columns are drawn.")
         for e in (self.e_name, self.e_ident, self.e_stop):
             e.bind("<KeyRelease>", lambda _: self._mark_dirty())
 
@@ -327,6 +342,9 @@ class TemplateEditor(ctk.CTkFrame):
         self.e_rname = ctk.CTkEntry(self.reg_box, height=30, placeholder_text="name, e.g. invoice_number")
         self.e_rname.pack(**R)
         self.e_rname.bind("<KeyRelease>", lambda _: self._region_changed())
+        self.v_rkind = tk.StringVar(value="Field")
+        ctk.CTkSegmentedButton(self.reg_box, values=["Field", "Table column"], variable=self.v_rkind,
+                               height=30, command=lambda _: self._kind_changed()).pack(**R, pady=(8, 0))
         row = ctk.CTkFrame(self.reg_box, fg_color="transparent")
         row.pack(**R, pady=(8, 0))
         self.v_rtype = tk.StringVar(value="text")
@@ -335,11 +353,32 @@ class TemplateEditor(ctk.CTkFrame):
         self.v_rreq = tk.BooleanVar(value=False)
         ctk.CTkCheckBox(row, text="Required", variable=self.v_rreq, font=self.app.f_body,
                         command=self._region_changed).pack(side="left", padx=12)
+        self.field_opts = ctk.CTkFrame(self.reg_box, fg_color="transparent")
+        self.field_opts.pack(**R)
+        ctk.CTkLabel(self.field_opts, text="Read from", font=self.app.f_small, anchor="w").pack(
+            fill="x", pady=(8, 2))
+        self.v_rpage = tk.StringVar(value="First page")
+        self.seg_rpage = ctk.CTkSegmentedButton(self.field_opts, values=["First page", "Last page"],
+                                                variable=self.v_rpage, height=28,
+                                                command=lambda _: self._region_changed())
+        self.seg_rpage.pack(fill="x")
+        ctk.CTkLabel(self.field_opts, text="Follows label (optional)", font=self.app.f_small,
+                     anchor="w").pack(fill="x", pady=(8, 2))
+        self.e_rlabel = ctk.CTkEntry(self.field_opts, height=30, placeholder_text="e.g. Total Invoice Cost:")
+        self.e_rlabel.pack(fill="x")
+        self.e_rlabel.bind("<KeyRelease>", lambda _: self._region_changed())
+        ctk.CTkLabel(self.field_opts, text="The box moves with this printed label, for values whose "
+                                           "position changes (totals after a table).",
+                     font=ctk.CTkFont("Segoe UI", 11), anchor="w", justify="left", wraplength=280,
+                     text_color=("gray45", "gray55")).pack(fill="x")
         ctk.CTkLabel(self.reg_box, text="Must match (optional regex)", font=self.app.f_small,
                      anchor="w").pack(**R, pady=(8, 2))
         self.e_rpat = ctk.CTkEntry(self.reg_box, height=30, placeholder_text=r"e.g. \d{5,10}")
         self.e_rpat.pack(**R)
         self.e_rpat.bind("<KeyRelease>", lambda _: self._region_changed())
+        self.stretch_btn = ctk.CTkButton(self.reg_box, text="⇣  Stretch columns to table end", height=30,
+                                         command=self.stretch_columns)
+        self.stretch_btn.pack(**R, pady=(10, 0))
         ctk.CTkButton(self.reg_box, text="Delete this box", height=30, fg_color=RED,
                       hover_color="#b84a4a", command=self.delete_region).pack(**R, pady=10)
 
@@ -398,6 +437,7 @@ class TemplateEditor(ctk.CTkFrame):
         self.e_stop.delete(0, "end")
         self.e_stop.insert(0, ", ".join(t.stop_words))
         self.v_merge.set(t.merge_wrapped)
+        self.v_to_end.set(t.to_page_end)
         self.refresh_regions()
         self._show_region(None)
         if t.sample and Path(t.sample).exists() and (self.page is None or self.page_path != t.sample):
@@ -458,13 +498,13 @@ class TemplateEditor(ctk.CTkFrame):
                 return
         self.loading = True
         self.hint.configure(text="Reading the sample invoice (OCR)… this takes a few seconds.")
-        self.page_path = path
 
         def work():
             try:
                 if "ocr" not in self.app.cache:
                     self.app.cache["ocr"] = ex.OcrEngine()
                 page = ex.load_page(Path(path), self.app.cache["ocr"])
+                page.total = ex.page_count(Path(path))
                 self.after(0, lambda: self._sample_loaded(path, page, None))
             except Exception as e:
                 err = f"{type(e).__name__}: {e}"
@@ -478,7 +518,11 @@ class TemplateEditor(ctk.CTkFrame):
             messagebox.showerror(APP_NAME, f"Could not read the sample:\n{err}", parent=self)
             self._set_hint()
             return
+        self.page_path = path
+        self.pages = {0: page}
+        self.page_index, self.page_total = 0, page.total
         self.page = page
+        self._show_pageno()
         if self.template is None:
             self.load_template(ex.Template("New template 1", stop_words=["Total"]))
             self.dirty = True
@@ -491,6 +535,55 @@ class TemplateEditor(ctk.CTkFrame):
         self.set_zoom(0)
         self.refresh_regions()
         self._set_hint()
+
+    def _get_page(self, i: int) -> ex.Page:
+        """Sample page i (0-based), read on first use."""
+        if i not in self.pages:
+            self.hint.configure(text=f"Reading page {i + 1}…")
+            self.configure(cursor="watch")
+            self.update_idletasks()
+            try:
+                self.pages[i] = ex.load_page(Path(self.page_path), self.app.cache.get("ocr"), index=i)
+            finally:
+                self.configure(cursor="")
+                self._set_hint()
+        return self.pages[i]
+
+    def show_page(self, i: int):
+        if self.page is None or not 0 <= i < self.page_total:
+            return
+        try:
+            self.page = self._get_page(i)
+        except Exception as e:
+            messagebox.showerror(APP_NAME, f"Could not read page {i + 1}:\n{e}", parent=self)
+            return
+        self.page_index = i
+        self._show_pageno()
+        self.set_zoom(0 if self._auto_fit_on() else 1)
+        self.refresh_regions(keep=self.sel)
+
+    def goto_page(self, step: int):
+        self.show_page(self.page_index + step)
+
+    def _auto_fit_on(self) -> bool:
+        return getattr(self, "_auto_fit", True)
+
+    def _show_pageno(self):
+        self.l_pageno.configure(text=f"Page {self.page_index + 1} / {self.page_total}" if self.page_total
+                                else "Page –")
+
+    @property
+    def last_index(self) -> int:
+        return max(0, self.page_total - 1)
+
+    def _region_page(self, r: ex.Region) -> int:
+        return self.last_index if (r.kind == "field" and r.page == "last") else 0
+
+    def _visible(self, r: ex.Region) -> bool:
+        """Columns show on every page; fields on the page they are read from."""
+        if r.kind == "column" or self.page_total <= 1:
+            return True
+        return self.page_index == self._region_page(r)
 
     def _guess_identify(self) -> str:
         """Suggest the longest text line near the top of the page (usually the company name)."""
@@ -551,7 +644,8 @@ class TemplateEditor(ctk.CTkFrame):
                 c.create_rectangle(x0, y0, x1, y1, outline="#c9a227", dash=(2, 3), width=1)
         if self.template:
             for r in self.template.regions:
-                self._draw_region(r)
+                if self._visible(r):
+                    self._draw_region(r)
 
     def _draw_region(self, r: ex.Region):
         x0, y0, x1, y1 = self._to_canvas(r.box)
@@ -577,9 +671,12 @@ class TemplateEditor(ctk.CTkFrame):
         if self.page is None:
             return ""
         if r.kind == "field":
-            return ex.clean_value(ex._join_lines(ex._text_in(self.page.words, r.box)), r.type, r.pattern)
+            page = self.pages.get(self._region_page(r))
+            if page is None:
+                return "(on the last page)"
+            return ex.clean_value(ex._join_lines(ex._text_in(page.words, r.box)), r.type, r.pattern)
         res = ex.apply_template(self._current(anchor=False), self.page.words)
-        vals = [row.get(r.name, "") for row in res.rows if row.get(r.name)]
+        vals = [row.get(r.name, "") for row in res.rows if row.get(r.name)]  # this page only
         return f"{len(vals)} rows, e.g. {vals[0]}" if vals else "no rows"
 
     # ---------------- mouse
@@ -587,8 +684,8 @@ class TemplateEditor(ctk.CTkFrame):
         if not self.template:
             return None
         fx, fy = self._to_frac(x, y)
-        hits = [r for r in self.template.regions
-                if r.box[0] <= fx <= r.box[2] and r.box[1] <= fy <= r.box[3]]
+        hits = [r for r in self.template.regions if self._visible(r)
+                and r.box[0] <= fx <= r.box[2] and r.box[1] <= fy <= r.box[3]]
         return min(hits, key=lambda r: (r.box[2] - r.box[0]) * (r.box[3] - r.box[1])) if hits else None
 
     def _press(self, e):
@@ -663,6 +760,10 @@ class TemplateEditor(ctk.CTkFrame):
 
     def _add_region(self, box):
         kind = "column" if self.v_draw.get() == "Table column" else "field"
+        if kind == "field" and self.page_total > 1 and 0 < self.page_index < self.last_index:
+            messagebox.showinfo(APP_NAME, "Fields are read from the first or the last page. "
+                                          "Go to one of those to draw this field.", parent=self)
+            return
         names = {r.name for r in self.template.regions}
         base = "column" if kind == "column" else "field"
         n = 1
@@ -670,15 +771,23 @@ class TemplateEditor(ctk.CTkFrame):
             n += 1
         r = ex.Region(f"{base}_{n}", kind, [round(v, 4) for v in box])
         if kind == "column":
-            others = [c for c in self.template.regions if c.kind == "column"]
-            if others:  # all columns share the table's top and bottom
-                r.box[1], r.box[3] = others[0].box[1], others[0].box[3]
+            self._fit_new_column(r)
+        elif self.page_total > 1 and self.page_index == self.last_index:
+            r.page = "last"
+            r.label = self._label_left_of(r.box)  # totals move with the table length
         self.template.regions.append(r)
         self._mark_dirty()
         self.refresh_regions(keep=r)
         self._select(r)
         self.e_rname.focus_set()
         self.e_rname.select_range(0, "end")
+
+    def _label_left_of(self, box) -> str:
+        """The text just left of a box on the same line, e.g. 'Total Invoice Cost:'."""
+        cy = (box[1] + box[3]) / 2
+        left = [w for w in self.page.words if abs(w.cy - cy) < 0.6 * max(w.h, 0.005)
+                and w.x1 <= box[0] + 0.005 and box[0] - w.x1 < 0.3 and any(c.isalpha() for c in w.text)]
+        return max(left, key=lambda w: w.x1).text if left else ""
 
     def _sync_columns(self, src: ex.Region):
         for c in self.template.regions:
@@ -722,17 +831,25 @@ class TemplateEditor(ctk.CTkFrame):
         self._loading_region = True
         self.e_rname.delete(0, "end")
         self.e_rpat.delete(0, "end")
+        self.e_rlabel.delete(0, "end")
         state = "normal" if r else "disabled"
-        for w in self.reg_box.winfo_children():
+        for w in [*self.reg_box.winfo_children(), self.seg_rpage, self.e_rlabel]:
             try:
                 w.configure(state=state)
             except (tk.TclError, ValueError):
                 pass
         if r:
+            self.v_rkind.set("Field" if r.kind == "field" else "Table column")
+            self.stretch_btn.configure(state="normal" if r.kind == "column" else "disabled")
             self.e_rname.insert(0, r.name)
             self.e_rpat.insert(0, r.pattern)
             self.v_rtype.set(r.type)
             self.v_rreq.set(r.required)
+            self.v_rpage.set("Last page" if r.page == "last" else "First page")
+            self.e_rlabel.insert(0, r.label)
+            fstate = "normal" if r.kind == "field" else "disabled"
+            self.seg_rpage.configure(state=fstate)
+            self.e_rlabel.configure(state=fstate)
         self._loading_region = False
 
     def _region_changed(self):
@@ -743,12 +860,74 @@ class TemplateEditor(ctk.CTkFrame):
         self.sel.type = self.v_rtype.get()
         self.sel.required = bool(self.v_rreq.get())
         self.sel.pattern = self.e_rpat.get().strip()
+        if self.sel.kind == "field":
+            new_page = "last" if self.v_rpage.get() == "Last page" else "first"
+            if new_page != self.sel.page:
+                self.sel.page = new_page
+                if not self._visible(self.sel):  # show the page it now reads from
+                    self.after(10, lambda: self.show_page(self._region_page(self.sel)))
+            self.sel.label = self.e_rlabel.get().strip()
         self._mark_dirty()
         if self.template and self.sel in self.template.regions:
             iid = str(self.template.regions.index(self.sel))
             self.rtree.item(iid, values=(self.sel.name, "Field" if self.sel.kind == "field" else "Column",
                                          self._value(self.sel)))
         self.redraw()
+
+    def _kind_changed(self):
+        if self._loading_region or not self.sel:
+            return
+        kind = "column" if self.v_rkind.get() == "Table column" else "field"
+        if kind == self.sel.kind:
+            return
+        self.sel.kind = kind
+        if kind == "column":
+            self._fit_new_column(self.sel)
+        self.stretch_btn.configure(state="normal" if kind == "column" else "disabled")
+        self._mark_dirty()
+        self.refresh_regions(keep=self.sel)
+
+    def _fit_new_column(self, r: ex.Region):
+        """A new column takes the table's top and bottom; the first one reaches down to the
+        'Table ends at' words so a box drawn over one row still covers the whole table."""
+        others = [c for c in self.template.regions if c.kind == "column" and c is not r]
+        if others:
+            r.box[1], r.box[3] = others[0].box[1], others[0].box[3]
+        elif (end := self._table_end_y(r.box[1])) is not None and end > r.box[3]:
+            r.box[3] = round(end, 4)
+
+    def _table_end_y(self, top: float) -> float | None:
+        """Top of the first line below `top` containing a 'Table ends at' word, on the sample."""
+        if self.page is None:
+            return None
+        stops = [ex._norm(x) for x in self.e_stop.get().split(",") if x.strip()]
+        if not stops:
+            return None
+        words = self.page.words
+        best = None
+        for w in words:
+            if w.y0 <= top + 0.005:
+                continue
+            line = ex._norm(" ".join(o.text for o in sorted(words, key=lambda o: o.x0)
+                                     if abs(o.cy - w.cy) < 0.6 * max(w.h, 0.005)))
+            if any(st in line for st in stops) and (best is None or w.y0 < best):
+                best = w.y0
+        return best - 0.004 if best is not None else None
+
+    def stretch_columns(self):
+        cols = [c for c in self.template.regions if c.kind == "column"] if self.template else []
+        if not cols:
+            return
+        top = min(c.box[1] for c in cols)
+        end = self._table_end_y(top)
+        if end is None:
+            messagebox.showinfo(APP_NAME, "None of the 'Table ends at' words were found below the table "
+                                          "on this sample. Drag a column's corner down instead.", parent=self)
+            return
+        for c in cols:
+            c.box[3] = round(end, 4)
+        self._mark_dirty()
+        self.refresh_regions(keep=self.sel)
 
     def delete_region(self):
         if self.sel and self.template and self.sel in self.template.regions:
@@ -765,9 +944,20 @@ class TemplateEditor(ctk.CTkFrame):
         t.identify = [s.strip() for s in self.e_ident.get().split(",") if s.strip()]
         t.stop_words = [s.strip() for s in self.e_stop.get().split(",") if s.strip()]
         t.merge_wrapped = bool(self.v_merge.get())
-        if anchor and self.page is not None:
-            t.anchor = ex.make_anchor(t, self.page.words)
+        t.to_page_end = bool(self.v_to_end.get())
+        if anchor and self.pages:
+            first = self.pages[0].words
+            t.anchor = ex.make_anchor(t, first)
+            t.table_head = ex.make_table_head(t, first)
+            for f in t.fields:
+                if f.label:
+                    ex.set_label_pos(f, self._get_page(self._region_page(f)).words)
+                else:
+                    f.label_pos = None
         return t
+
+    def _all_sample_words(self) -> list[list]:
+        return [self._get_page(i).words for i in range(max(1, self.page_total))]
 
     def _problems(self, t: ex.Template) -> list[str]:
         out = []
@@ -788,11 +978,18 @@ class TemplateEditor(ctk.CTkFrame):
             messagebox.showinfo(APP_NAME, "Open a sample invoice and draw some boxes first.", parent=self)
             return
         t = self._current()
-        res = ex.apply_template(t, self.page.words)
-        found = ex.identify(self.page.words, [t])
-        ResultWindow(self, f"Test: {t.name}", t, res,
-                     note=None if found else "Warning: none of the identify words were found on this "
-                                             "sample, so real files would not be matched to it.")
+        pages = self._all_sample_words()
+        res = ex.apply_template(t, pages[0], pages[1:])
+        found = ex.identify(pages[0], [t])
+        missing_labels = [f.name for f in t.fields if f.label and not f.label_pos]
+        note = None
+        if not found:
+            note = ("Warning: none of the identify words were found on this sample, so real files "
+                    "would not be matched to it.")
+        elif missing_labels:
+            note = f"Label not found on the sample for: {', '.join(missing_labels)}"
+        ResultWindow(self, f"Test: {t.name}  ({len(pages)} page{'s' if len(pages) > 1 else ''})",
+                     t, res, note=note)
 
     def save(self):
         if not self.template:
@@ -891,7 +1088,8 @@ class LinesTable(ctk.CTkFrame):
         if self.inner:
             self.inner.destroy()
         cols = [c.name for c in t.columns] if t else []
-        spec = [("#", "#", 40)] + [(c, c, 110) for c in cols] if cols else [("info", "Table", 300)]
+        spec = ([("#", "#", 40), ("page", "Page", 46)] + [(c, c, 110) for c in cols]) if cols \
+            else [("info", "Table", 300)]
         tree, frame = make_tree(self, spec, "Lines.Treeview")
         style_tree(self, "Lines.Treeview")
         frame.grid(row=0, column=0, sticky="nsew")
@@ -900,9 +1098,9 @@ class LinesTable(ctk.CTkFrame):
             tree.insert("", "end", values=("No table columns in this template",))
         elif res and res.rows:
             for i, r in enumerate(res.rows, 1):
-                tree.insert("", "end", values=(i, *[r.get(c, "") for c in cols]))
+                tree.insert("", "end", values=(i, r.get("page", 1), *[r.get(c, "") for c in cols]))
         else:
-            tree.insert("", "end", values=("", "No table lines found"))
+            tree.insert("", "end", values=("", "", "No table lines found"))
 
 
 # =========================================================================== run page
