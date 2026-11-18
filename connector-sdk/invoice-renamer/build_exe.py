@@ -1,10 +1,11 @@
 """Build InvoiceRenamer.exe (Windows) with PyInstaller.
 
     pip install -r requirements.txt pyinstaller customtkinter
-    python build_exe.py
+    python build_exe.py              # dist\\InvoiceExtractor.exe (v2)
+    python build_exe.py renamer      # dist\\InvoiceRenamer.exe (v1 app)
 
-Output: dist\\InvoiceRenamer.exe - a single file you can copy to any Windows PC;
-Python does not need to be installed there.
+Each exe is a single file you can copy to any Windows PC; Python does not need to be
+installed there.
 """
 
 import os
@@ -32,12 +33,23 @@ def make_icon(path: Path) -> None:
     im.save(path, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
 
+APPS = {  # python build_exe.py [extractor|renamer]
+    "extractor": ("InvoiceExtractor", "extractor_gui.py", ["templates"]),
+    "renamer": ("InvoiceRenamer", "invoice_renamer_gui.py", []),
+}
+
+
 def main() -> int:
+    which = sys.argv[1] if len(sys.argv) > 1 else "extractor"
+    name, script, folders = APPS[which]
     ico = HERE / "app.ico"
     make_icon(ico)
+    extra = []
+    for folder in folders:  # bundled starter files, e.g. the AAW template
+        extra += ["--add-data", f"{HERE / folder};{folder}"]
     cmd = [
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
-        "--onefile", "--windowed", "--name", "InvoiceRenamer",
+        "--onefile", "--windowed", "--name", name, *extra,
         "--icon", str(ico), "--add-data", f"{ico};.",
         "--collect-data", "rapidocr",          # OCR models + config files
         "--collect-submodules", "rapidocr",
@@ -48,7 +60,7 @@ def main() -> int:
         "--exclude-module", "torch", "--exclude-module", "paddle",
         "--exclude-module", "openvino", "--exclude-module", "tensorflow",
         "--exclude-module", "matplotlib", "--exclude-module", "pandas",
-        str(HERE / "invoice_renamer_gui.py"),
+        str(HERE / script),
     ]
     # PyInstaller finds runtime DLLs through PATH. Put System32 first so it bundles the current
     # Microsoft C++ runtime (msvcp140.dll), not an old copy from another program such as Java,

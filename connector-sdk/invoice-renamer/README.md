@@ -1,4 +1,54 @@
-# Invoice renamer
+# Invoice Extractor (v2)
+
+Pulls the header values and table lines you choose out of each invoice (scans and PDFs,
+local OCR, offline) and writes **one CSV per invoice** to a folder you pick. Files are not
+renamed or moved. v1 (the renamer below) is kept on branch `invoice-renamer-v1`.
+
+## Desktop app (InvoiceExtractor.exe)
+
+`dist\InvoiceExtractor.exe` is a single file; copy it to any Windows PC and double-click it.
+
+**Templates page**: one template per supplier layout.
+
+1. *Open sample invoice* - pick a scan or PDF from that supplier. The text found is outlined.
+2. *Draw: Field* - drag a box around a header value (or click a word to box it). Name it,
+   e.g. `invoice_number`, and choose a type: text, number, amount or date. Tick *Required*
+   if the invoice must not pass without it; *Must match* takes an optional regex such as `\d{5,10}`.
+3. *Draw: Table column* - drag a box over each column of the table body (below the headings).
+   All columns share the same top and bottom; rows are found automatically.
+4. *Identify words* - text printed on that supplier's invoices (company name). Each file gets
+   the template with the most matches. *Table ends at* - words that end the table, e.g. Total.
+5. *Test on sample*, then *Save template*.
+
+Boxes can be moved (drag) and resized (drag the corner); Delete removes one; Ctrl+wheel zooms.
+Templates are saved as JSON in `%APPDATA%\InvoiceExtractor\templates`; an AAW template is
+installed on first start.
+
+**Run page**: scans folder, CSV folder, Run once or Watch. Each file gets `<scan name>.csv`
+with one row per table line and the header values repeated on every row (UTF-8 with BOM, so
+Excel shows Arabic correctly). A file is done once its CSV exists, so re-scanning a file
+re-extracts it. Status per file goes to `C:\RPA\extract_log.csv`:
+
+| status | meaning |
+|---|---|
+| extracted | all required values found, CSV written |
+| needs_review | CSV written, but a required value is missing (see detail) |
+| no_template | no template's identify words were found; no CSV |
+| error | the file could not be read; no CSV |
+
+Command line (also what the exe does when started with arguments):
+
+    python extractor.py "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30
+    InvoiceExtractor.exe "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30
+
+Limits: only page 1 of a PDF is read, and a table that runs onto page 2 is cut at the
+end of page 1.
+
+Build: `python build_exe.py` (InvoiceExtractor.exe) or `python build_exe.py renamer`.
+
+---
+
+# Invoice renamer (v1)
 
 Reads scanned AAW invoice images with local OCR (free, offline) and renames each to
 
