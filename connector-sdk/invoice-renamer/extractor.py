@@ -66,6 +66,7 @@ class Page:
     image: Image.Image          # page 1 as an image (for preview / editor)
     words: list[Word]
     source: str                 # "pdf-text" or "ocr"
+    rotation: int = 0           # degrees the scan was turned to be upright
 
 
 class OcrEngine:
@@ -78,12 +79,40 @@ class OcrEngine:
         self.engine = RapidOCR()
         logging.getLogger("RapidOCR").setLevel(logging.ERROR)
 
+    def _small(self, img: Image.Image, side: int) -> np.ndarray:
+        g = ImageOps.autocontrast(img.convert("L"), cutoff=1)
+        g.thumbnail((side, side))
+        return np.array(g.convert("RGB"))
+
+    def orientation(self, img: Image.Image) -> int:
+        """Degrees (counter-clockwise) to turn a page so its text is upright: 0, 90 or 270.
+
+        Text boxes found on a sideways scan are tall instead of wide. Which way it lies is
+        decided by reading it both ways: the right way gives real words, the wrong way junk."""
+        det = self.engine(self._small(img, 1200), use_det=True, use_cls=False, use_rec=False)
+        if det.boxes is None or len(det.boxes) == 0:
+            return 0
+        b = np.asarray(det.boxes, dtype=float)
+        w = b[:, :, 0].max(1) - b[:, :, 0].min(1)
+        h = b[:, :, 1].max(1) - b[:, :, 1].min(1)
+        wide, tall = int((w > 1.5 * h).sum()), int((h > 1.5 * w).sum())
+        if tall <= 1.5 * max(wide, 1):
+            return 0
+
+        def real_words(angle: int) -> int:
+            r = self.engine(self._small(img.rotate(angle, expand=True), 1000), use_det=True, use_cls=False, use_rec=True)
+            toks = re.findall(r"[A-Za-z]{3,}", " ".join(r.txts or []))
+            return sum(1 for k in toks if re.search(r"[aeiouAEIOU]", k)
+                       and not re.search(r"[^aeiouAEIOU]{5}", k))
+
+        return max((90, 270), key=real_words)
+
     def words(self, img: Image.Image) -> list[Word]:
         gray = ImageOps.autocontrast(img.convert("L"), cutoff=1)
         if max(gray.size) > OCR_MAX_SIDE:
             gray.thumbnail((OCR_MAX_SIDE, OCR_MAX_SIDE))
         w, h = gray.size
-        res = self.engine(np.array(gray.convert("RGB")))
+        res = self.engine(np.array(gray.convert("RGB")), use_det=True, use_cls=True, use_rec=True)
         out = []
         for text, box in zip(res.txts or [], res.boxes if res.boxes is not None else []):
             b = np.asarray(box, dtype=float)
@@ -119,7 +148,19 @@ def page_count(path: Path) -> int:
         pdf.close()
 
 
-def load_page(path: Path, ocr: OcrEngine | None, need_words: bool = True, index: int = 0) -> Page:
+def load_page(path: Path, ocr: OcrEngine | None, need_words: bool = True, index: int = 0,
+              rotation: int | None = None, ref_size: tuple[int, int] | None = None) -> Page:
+    """ref_size: image size of page 1. Later pages of a scan can be a different size (the scanner
+    crops each page), so their positions are measured in page-1 units, as the template is."""
+    page = _load_page(path, ocr, need_words, index, rotation)
+    if ref_size and page.words and page.image.size != tuple(ref_size):
+        sx, sy = page.image.width / ref_size[0], page.image.height / ref_size[1]
+        page.words = [Word(w.text, w.x0 * sx, w.y0 * sy, w.x1 * sx, w.y1 * sy) for w in page.words]
+    return page
+
+
+def _load_page(path: Path, ocr: OcrEngine | None, need_words: bool, index: int,
+               rotation: int | None) -> Page:
     """One page (default the first) of an image or PDF, with its words
     (text layer for digital PDFs, else OCR)."""
     if path.suffix.lower() == ".pdf":
@@ -143,7 +184,12 @@ def load_page(path: Path, ocr: OcrEngine | None, need_words: bool = True, index:
         return Page(img, [], "none")
     if ocr is None:
         raise RuntimeError("OCR engine not loaded")
-    return Page(img, ocr.words(img), "ocr")
+    angle = ocr.orientation(img) if rotation is None else rotation  # later pages: as page 1
+    if angle:  # scanned sideways: turn it upright (the editor shows it upright too)
+        img = img.rotate(angle, expand=True)
+    page = Page(img, ocr.words(img), "ocr")
+    page.rotation = angle
+    return page
 
 
 # --------------------------------------------------------------------------- templates
@@ -169,6 +215,7 @@ class Template:
     merge_wrapped: bool = True    # a row with an empty first column continues the row above
     to_page_end: bool = True      # table runs to the bottom of each page (until a stop word);
                                   # False = only as far down as the column boxes are drawn
+    line_check: dict | None = None  # {"qty": col, "price": col, "total": col}: qty x price = total
     anchor: dict | None = None    # {"text":..., "x":..., "y":...} used to correct shifted scans
     table_head: dict | None = None  # column headings above the table, to find it on every page
     sample: str = ""              # sample file the template was drawn on
@@ -275,12 +322,16 @@ def find_table_head(words: list[Word], head: dict | None) -> tuple[float, float]
 
 
 def identify(words: list[Word], templates: list[Template]) -> Template | None:
-    """The template whose identify words appear most on the page (at least one)."""
+    """The template with the largest share of its identify words on the page (at least one
+    found); on a tie, the one with more words found. A share, not a count, so a template whose
+    words are all there beats one that only shares a name printed on everyone's documents."""
     page = _norm(" ".join(w.text for w in words))
-    best, best_score = None, 0
+    best, best_score = None, (0.0, 0)
     for t in templates:
-        score = sum(1 for k in t.identify if _norm(k) and _norm(k) in page)
-        if t.identify and score > best_score:
+        keys = [_norm(k) for k in t.identify if _norm(k)]
+        found = sum(1 for k in keys if k in page)
+        score = (found / len(keys), found) if keys and found else (0.0, 0)
+        if score > best_score:
             best, best_score = t, score
     return best
 
@@ -359,6 +410,8 @@ class Result:
     problems: list[str] = field(default_factory=list)
     source: str = ""
     pages: int = 1
+    notes: list[str] = field(default_factory=list)  # corrections made (logged, not problems)
+    table_ended: bool = False  # a 'Table ends at' word was reached
 
     @property
     def ok(self) -> bool:
@@ -442,11 +495,60 @@ def apply_template(t: Template, words: list[Word], more_pages: list[list[Word]] 
                 r["page"] = n
             res.rows += rows
             if stopped:
+                res.table_ended = True
                 break
         for c in cols:
             if c.required and not any(r.get(c.name) for r in res.rows):
                 res.problems.append(f"column {c.name} empty")
+        if t.line_check:
+            check_lines(t.line_check, res)
     return res
+
+
+def _num(v: str):
+    from decimal import Decimal, InvalidOperation
+    try:
+        return Decimal(v.replace(",", "")) if v else None
+    except InvalidOperation:
+        return None
+
+
+def check_lines(lc: dict, res: Result) -> None:
+    """Quantity x price must equal the line total. A quantity OCR clearly misread (e.g. "61"
+    for "6|", or blank) is replaced by total / price when that is a whole number made of the
+    digits that were read; anything else that doesn't add up goes to review."""
+    from decimal import Decimal
+    qk, pk, tk = lc.get("qty"), lc.get("price"), lc.get("total")
+    if not (qk and pk and tk):
+        return
+    bad = []
+    for i, r in enumerate(res.rows, 1):
+        q, pr, tot = _num(r.get(qk, "")), _num(r.get(pk, "")), _num(r.get(tk, ""))
+        if pr is None or tot is None:
+            bad.append(f"line {i}: price or total missing")
+            continue
+        # prices are printed rounded: allow quantity x half a unit of the price's last decimal
+        decimals = max(0, -pr.as_tuple().exponent)
+        half = Decimal(5) / (Decimal(10) ** (decimals + 1))
+
+        def adds_up(qty):
+            return abs(qty * pr - tot) <= abs(qty) * half + Decimal("0.0015")
+
+        if q is not None and adds_up(q):
+            r["check"] = "ok"
+            continue
+        if pr:
+            whole = (tot / pr).to_integral_value()
+            read = r.get(qk, "").replace(",", "").split(".")[0]
+            if whole > 0 and adds_up(whole) and (not read or str(whole) in read):
+                r["check"] = f"quantity corrected from '{r.get(qk, '')}' to {whole}"
+                res.notes.append(f"line {i}: {r['check']}")
+                r[qk] = f"{whole}"
+                continue
+        r["check"] = "FAIL"
+        bad.append(f"line {i}: {r.get(qk)} x {r.get(pk)} != {r.get(tk)}")
+    if bad:
+        res.problems.append("line check failed: " + "; ".join(bad[:5]) + (" ..." if len(bad) > 5 else ""))
 
 
 def _table_rows(t: Template, cols: list[Region], words, dx, top, bottom) -> tuple[list[dict], bool]:
@@ -509,7 +611,8 @@ def write_csv(out_dir: Path, src: Path, t: Template, res: Result) -> Path:
     target = csv_path(out_dir, src)
     head = [f.name for f in t.fields]
     cols = [c.name for c in t.columns]
-    fieldnames = ["source_file", "template", *head, *(["page"] if cols else []), *cols]
+    fieldnames = ["source_file", "template", *head, *(["page"] if cols else []), *cols,
+                  *(["check"] if t.line_check else [])]
     rows = res.rows or [{}]
     tmp = target.with_suffix(".csv.tmp")
     with tmp.open("w", newline="", encoding="utf-8-sig") as f:  # BOM so Excel shows Arabic
@@ -567,7 +670,13 @@ def process_file(path: Path, templates: list[Template], ocr: OcrEngine, out_dir:
         return row
     more = []
     if needs_all_pages(t):  # the table may continue on later pages; totals may be on the last
-        more = [load_page(path, ocr, index=i).words for i in range(1, page_count(path))]
+        rot = page.rotation if page.source == "ocr" else None
+        last_fields = any(f.page == "last" for f in t.fields)
+        n = page_count(path)
+        for i in range(1, n):
+            if not last_fields and t.columns and apply_template(t, page.words, more).table_ended:
+                break  # table already ended: the remaining pages (terms etc.) aren't needed
+            more.append(load_page(path, ocr, index=i, rotation=rot, ref_size=page.image.size).words)
     res = apply_template(t, page.words, more)
     res.source = page.source
     res.pages = 1 + len(more)
@@ -577,6 +686,8 @@ def process_file(path: Path, templates: list[Template], ocr: OcrEngine, out_dir:
         row["csv"] = write_csv(out_dir, path, t, res).name
     if res.ok:
         row["status"] = "extracted" if not dry_run else "preview"
+        if res.notes:
+            row["detail"] = "; ".join(res.notes)
     else:
         row.update(status="needs_review", detail="; ".join(res.problems))
     return row

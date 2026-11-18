@@ -323,6 +323,22 @@ class TemplateEditor(ctk.CTkFrame):
                       font=self.app.f_body, command=self._mark_dirty).pack(**P, pady=(8, 0))
         hint("On: lines are read down the whole page until a 'Table ends at' word, so longer "
              "invoices than the sample are complete. Off: only as far down as the columns are drawn.")
+        label("Check each line: quantity × price = total", top=14)
+        chk = ctk.CTkFrame(f, fg_color="transparent")
+        chk.pack(**P)
+        self.v_chk = {}
+        self.chk_menus = {}
+        for i, (key, title) in enumerate((("qty", "Quantity"), ("price", "Price"), ("total", "Total"))):
+            chk.grid_columnconfigure(i, weight=1)
+            ctk.CTkLabel(chk, text=title, font=ctk.CTkFont("Segoe UI", 11),
+                         text_color=("gray40", "gray60")).grid(row=0, column=i, sticky="w", padx=2)
+            self.v_chk[key] = tk.StringVar(value="—")
+            m = ctk.CTkOptionMenu(chk, values=["—"], variable=self.v_chk[key], height=28, width=96,
+                                  dynamic_resizing=False, command=lambda _: self._mark_dirty())
+            m.grid(row=1, column=i, sticky="ew", padx=2)
+            self.chk_menus[key] = m
+        hint("Optional. Lines that don't add up go to review; a clearly misread quantity "
+             "(e.g. 61 for 6|) is corrected from total ÷ price and noted in the log.")
         for e in (self.e_name, self.e_ident, self.e_stop):
             e.bind("<KeyRelease>", lambda _: self._mark_dirty())
 
@@ -438,6 +454,8 @@ class TemplateEditor(ctk.CTkFrame):
         self.e_stop.insert(0, ", ".join(t.stop_words))
         self.v_merge.set(t.merge_wrapped)
         self.v_to_end.set(t.to_page_end)
+        for key, var in self.v_chk.items():
+            var.set((t.line_check or {}).get(key) or "—")
         self.refresh_regions()
         self._show_region(None)
         if t.sample and Path(t.sample).exists() and (self.page is None or self.page_path != t.sample):
@@ -543,7 +561,10 @@ class TemplateEditor(ctk.CTkFrame):
             self.configure(cursor="watch")
             self.update_idletasks()
             try:
-                self.pages[i] = ex.load_page(Path(self.page_path), self.app.cache.get("ocr"), index=i)
+                first = self.pages[0]
+                self.pages[i] = ex.load_page(Path(self.page_path), self.app.cache.get("ocr"), index=i,
+                                             rotation=first.rotation if first.source == "ocr" else None,
+                                             ref_size=first.image.size)
             finally:
                 self.configure(cursor="")
                 self._set_hint()
@@ -618,13 +639,17 @@ class TemplateEditor(ctk.CTkFrame):
         else:
             self.canvas.yview_scroll(int(-e.delta / 120) * 3, "units")
 
+    def _ref_size(self):
+        """Positions are page-1 fractions on every page (later pages may be cut shorter)."""
+        return (self.pages.get(0) or self.page).image.size
+
     def _to_canvas(self, box):
-        iw, ih = self.page.image.size
+        iw, ih = self._ref_size()
         z = self.zoom
         return box[0] * iw * z, box[1] * ih * z, box[2] * iw * z, box[3] * ih * z
 
     def _to_frac(self, x, y):
-        iw, ih = self.page.image.size
+        iw, ih = self._ref_size()
         return (min(1, max(0, x / (iw * self.zoom))), min(1, max(0, y / (ih * self.zoom))))
 
     def redraw(self):
@@ -797,6 +822,11 @@ class TemplateEditor(ctk.CTkFrame):
     # ---------------- regions panel
     def refresh_regions(self, keep: ex.Region | None = None):
         self.rtree.delete(*self.rtree.get_children())
+        cols = ["—"] + [c.name for c in self.template.columns] if self.template else ["—"]
+        for key, m in self.chk_menus.items():
+            m.configure(values=cols)
+            if self.v_chk[key].get() not in cols:
+                self.v_chk[key].set("—")
         if not self.template:
             return
         for i, r in enumerate(self.template.regions):
@@ -945,6 +975,8 @@ class TemplateEditor(ctk.CTkFrame):
         t.stop_words = [s.strip() for s in self.e_stop.get().split(",") if s.strip()]
         t.merge_wrapped = bool(self.v_merge.get())
         t.to_page_end = bool(self.v_to_end.get())
+        chosen = {k: v.get() for k, v in self.v_chk.items()}
+        t.line_check = chosen if all(v != "—" for v in chosen.values()) else None
         if anchor and self.pages:
             first = self.pages[0].words
             t.anchor = ex.make_anchor(t, first)

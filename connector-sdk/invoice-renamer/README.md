@@ -40,8 +40,24 @@ templates are installed on first start.
   nothing in any of those, are not new rows: they are wrapped text of the row above, or
   stamps, notes and page footers.
 
-Tested on the 64 LuLu purchase orders in `FMCG Ordering\Lulu LPO` (1-3 pages, 1,227 lines):
-every line, column, PO number, date and total matches the PDFs' own text.
+**Line check** (optional, per template): pick the quantity, price and total columns and every
+line is checked for quantity x price = total (allowing for prices printed rounded). A
+quantity OCR clearly misread - e.g. `61` for `6|` on dot-matrix printouts, or blank - is
+replaced by total / price when that is a whole number made of the digits read; the CSV
+`check` column and the log detail say so. Lines that still don't add up send the file to
+review.
+
+**Scans**: pages scanned sideways are turned upright automatically (also in the editor).
+Later pages of a scan may be cut shorter than page 1; they are measured in page-1 units so
+the columns still line up. Once the table has ended, the remaining pages are not read.
+
+Starter templates (installed on first start):
+
+| template | documents | checked on |
+|---|---|---|
+| AAW | AAW invoices, scanned | 6 scans: 5 read fully, the faded one sent to review |
+| LuLu LPO | LuLu purchase orders, digital PDF, 1-3 pages | all 64 POs, 1,227 lines: every value matches the PDFs' own text |
+| Carrefour LPO | Carrefour purchase orders, sideways dot-matrix scans | sample POs: lines add up to the printed totals; misread lines go to review |
 
 **Run page**: scans folder, CSV folder, Run once or Watch. Each file gets `<scan name>.csv`
 with one row per table line and the header values repeated on every row (UTF-8 with BOM, so

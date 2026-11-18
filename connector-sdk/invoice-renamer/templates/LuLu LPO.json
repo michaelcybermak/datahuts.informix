@@ -2,7 +2,6 @@
   "name": "LuLu LPO",
   "identify": [
     "LuLu",
-    "PURCHASE ORDER",
     "Purchase Order #"
   ],
   "regions": [
@@ -399,5 +398,10 @@
     ],
     "y": 0.2989
   },
-  "sample": "D:\\Work\\AAW\\New Processes\\FMCG Ordering\\Lulu LPO\\LuLu Central Warehouse-KW.PDF"
+  "sample": "D:\\Work\\AAW\\New Processes\\FMCG Ordering\\Lulu LPO\\LuLu Central Warehouse-KW.PDF",
+  "line_check": {
+    "qty": "quantity",
+    "price": "net_price",
+    "total": "total_value"
+  }
 }
