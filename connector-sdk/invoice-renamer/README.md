@@ -38,6 +38,8 @@ templates are installed on first start.
   totals. Use ◀ ▶ to see other pages of the sample; a field drawn on the last page reads from it.
 - *Follows label*: the box moves with a printed label such as `Total Invoice Cost:`, for
   values whose position changes with the number of lines.
+- A row the printer split over the page break (values at the bottom of one page, its number
+  at the top of the next) is joined back into one row.
 - Lines with nothing in the first column, or (when the table has number/amount/date columns)
   nothing in any of those, are not new rows: they are wrapped text of the row above, or
   stamps, notes and page footers.

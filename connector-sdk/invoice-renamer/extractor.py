@@ -297,8 +297,12 @@ def make_table_head(t: Template, words: list[Word]) -> dict | None:
         return None
     top = min(c.box[1] for c in cols)
     left, right = min(c.box[0] for c in cols), max(c.box[2] for c in cols)
-    above = [w for w in words if w.cy < top and top - w.cy < 0.08 and w.x1 > left and w.x0 < right
-             and sum(ch.isalpha() for ch in w.text) >= 2]
+    # a heading is a short label; a sentence (terms, notes) printed above the table is not.
+    # A column box drawn over the heading row itself still finds it (its middle is just
+    # below the box top).
+    above = [w for w in words if w.cy < top + 0.012 and top - w.cy < 0.08 and w.x1 > left
+             and w.x0 < right and sum(ch.isalpha() for ch in w.text) >= 2
+             and len(w.text.split()) <= 4 and w.x1 - w.x0 < 0.3]
     if not above:
         return None
     med = float(np.median([w.h for w in above])) or 0.01
@@ -306,6 +310,8 @@ def make_table_head(t: Template, words: list[Word]) -> dict | None:
     # the lowest one on a tie
     lines = [[o for o in above if abs(o.cy - w.cy) < 0.6 * med] for w in above]
     line = max(lines, key=lambda ln: (len(ln), max(o.cy for o in ln)))
+    if len(line) < 2:
+        return None  # one word is not a heading line to trust
     return {"words": [{"text": w.text, "x": round(w.x0, 4)} for w in line],
             "y": round(max(w.y1 for w in line), 4)}
 
@@ -505,10 +511,22 @@ def apply_template(t: Template, words: list[Word], more_pages: list[list[Word]] 
             rows, stopped = _table_rows(t, cols, page_words, tdx, page_top, page_bottom)
             for r in rows:
                 r["page"] = n
+            first = cols[0].name
+            if res.rows and res.rows[-1].get("_split") and rows and rows[0][first]:
+                # a row split by the page break: its number and the rest are on this page
+                top_row, cont = res.rows[-1], rows.pop(0)
+                for c in cols:
+                    if cont[c.name] and not top_row[c.name]:
+                        top_row[c.name] = cont[c.name]
+                    elif cont[c.name] and c.type == "text" and c.name != first:
+                        top_row[c.name] = f"{top_row[c.name]} {cont[c.name]}"
+                top_row.pop("_split")
             res.rows += rows
             if stopped:
                 res.table_ended = True
                 break
+        for r in res.rows:
+            r.pop("_split", None)
         for c in cols:
             if c.required and not any(r.get(c.name) for r in res.rows):
                 res.problems.append(f"column {c.name} empty")
@@ -584,12 +602,27 @@ def _table_rows(t: Template, cols: list[Region], words, dx, top, bottom) -> tupl
     stops = [_norm(s) for s in t.stop_words if s.strip()]
     skips = [re.compile(r"(?<![^\W_])" + r"\s*".join(map(re.escape, s.split())) + r"(?![^\W_])", re.I)
              for s in t.skip_words if s.strip()]
+    head_keys = {_norm(h["text"]) for h in (t.table_head or {}).get("words", [])} - {""}
     rows: list[dict] = []
     last_bottom = None
+    held = None  # a numberless line that may be a row split by the page break (see below)
+
+    def merge(row, y1, close):
+        nonlocal last_bottom
+        if t.merge_wrapped and rows and close:
+            for c in cols:
+                if c.type == "text" and row[c.name]:
+                    rows[-1][c.name] = f"{rows[-1][c.name]} {row[c.name]}".strip()
+            last_bottom = y1
+
     for line in lines:
+        if head_keys and sum(_norm(w.text) in head_keys for w in line) >= min(2, len(head_keys)):
+            continue  # the column headings themselves (box drawn over them, or repeated)
         raw = " ".join(w.text for w in line)
         line_text = _norm(raw)
         if stops and any(s in line_text for s in stops):
+            if held:
+                merge(*held)
             return rows, True
         if skips and any(rx.search(raw) for rx in skips):
             continue  # page footer / repeated header: not a row, and the table goes on
@@ -600,6 +633,9 @@ def _table_rows(t: Template, cols: list[Region], words, dx, top, bottom) -> tupl
             row[c.name] = clean_value(_join_lines(_text_in(line, band, dx, 0.0)), c.type, c.pattern)
         if not any(row.values()):
             continue
+        if held:  # more lines follow on this page: it was wrapped text after all
+            merge(*held)
+            held = None
         first = cols[0].name
         typed = [c.name for c in cols if c.type != "text"]
         if not row[first] or (typed and not any(row[c] for c in typed)):
@@ -607,14 +643,18 @@ def _table_rows(t: Template, cols: list[Region], words, dx, top, bottom) -> tupl
             # date columns, none in any of them - is wrapped text of the row above (directly
             # under it), or a stamp, note or page footer: never a new row.
             close = last_bottom is not None and y0 - last_bottom < 1.2 * med_h
-            if t.merge_wrapped and rows and close:
-                for c in cols:
-                    if c.type == "text" and row[c.name]:
-                        rows[-1][c.name] = f"{rows[-1][c.name]} {row[c.name]}".strip()
-                last_bottom = y1
+            filled = sum(any(ch.isalnum() for ch in row[c.name]) for c in cols[1:])  # not rules ____
+            if not row[first] and len(cols) >= 4 and filled >= 3:
+                # Most columns filled but no number: if it is the page's last line, it is a row
+                # whose number the printer moved to the next page (joined there).
+                held = (row, y1, close)
+                continue
+            merge(row, y1, close)
             continue
         rows.append(row)
         last_bottom = y1
+    if held:
+        rows.append({**held[0], "_split": True})
     return rows, False
 
 
