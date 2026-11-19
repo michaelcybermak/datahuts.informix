@@ -30,6 +30,8 @@ templates are installed on first start.
 - Table lines are read from every page, in order, into the same CSV, with a `page` column.
   On each page the table is found by its column headings (saved with the template), so it may
   start higher on page 2 than on page 1. Reading stops at a *Table ends at* word.
+- *Skip lines with*: words of lines to leave out, such as the page footer printed between
+  pages (`Page`, for `Page 1 of 2 ...`). Unlike *Table ends at*, the table carries on after them.
 - *Table runs to the end of each page* (on by default): a column box drawn over one row still
   reads the whole table, and invoices longer than the sample are complete.
 - Fields are read from the first page, or from the last page (*Read from: Last page*), e.g.

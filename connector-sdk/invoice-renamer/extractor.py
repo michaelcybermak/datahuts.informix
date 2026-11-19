@@ -222,6 +222,8 @@ class Template:
     identify: list[str] = field(default_factory=list)     # words that identify this layout
     regions: list[Region] = field(default_factory=list)
     stop_words: list[str] = field(default_factory=lambda: ["Total"])
+    skip_words: list[str] = field(default_factory=list)  # lines with these are dropped (page
+                                  # footers/headers between pages); the table carries on
     merge_wrapped: bool = True    # a row with an empty first column continues the row above
     to_page_end: bool = True      # table runs to the bottom of each page (until a stop word);
                                   # False = only as far down as the column boxes are drawn
@@ -580,12 +582,17 @@ def _table_rows(t: Template, cols: list[Region], words, dx, top, bottom) -> tupl
     lines.append(cur)
 
     stops = [_norm(s) for s in t.stop_words if s.strip()]
+    skips = [re.compile(r"(?<![^\W_])" + r"\s*".join(map(re.escape, s.split())) + r"(?![^\W_])", re.I)
+             for s in t.skip_words if s.strip()]
     rows: list[dict] = []
     last_bottom = None
     for line in lines:
-        line_text = _norm(" ".join(w.text for w in line))
+        raw = " ".join(w.text for w in line)
+        line_text = _norm(raw)
         if stops and any(s in line_text for s in stops):
             return rows, True
+        if skips and any(rx.search(raw) for rx in skips):
+            continue  # page footer / repeated header: not a row, and the table goes on
         y0, y1 = min(w.y0 for w in line), max(w.y1 for w in line)
         row = {}
         for c in cols:

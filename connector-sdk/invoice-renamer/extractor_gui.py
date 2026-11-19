@@ -315,6 +315,11 @@ class TemplateEditor(ctk.CTkFrame):
         self.e_stop = ctk.CTkEntry(f, height=32)
         self.e_stop.pack(**P)
         hint("Comma separated words that mark the end of the table, e.g. Total.")
+        label("Skip lines with")
+        self.e_skip = ctk.CTkEntry(f, height=32)
+        self.e_skip.pack(**P)
+        hint("Comma separated words of lines to leave out, e.g. the page footer between pages "
+             "(Page, Created By). The table carries on after them.")
         self.v_merge = tk.BooleanVar(value=True)
         ctk.CTkSwitch(f, text="Join wrapped lines to the row above", variable=self.v_merge,
                       font=self.app.f_body).pack(**P, pady=(10, 0))
@@ -339,7 +344,7 @@ class TemplateEditor(ctk.CTkFrame):
             self.chk_menus[key] = m
         hint("Optional. Lines that don't add up go to review; a clearly misread quantity "
              "(e.g. 61 for 6|) is corrected from total ÷ price and noted in the log.")
-        for e in (self.e_name, self.e_ident, self.e_stop):
+        for e in (self.e_name, self.e_ident, self.e_stop, self.e_skip):
             e.bind("<KeyRelease>", lambda _: self._mark_dirty())
 
         ctk.CTkLabel(f, text="Fields and columns", font=self.app.f_h2, anchor="w").pack(**P, pady=(18, 4))
@@ -452,6 +457,8 @@ class TemplateEditor(ctk.CTkFrame):
         self.e_ident.insert(0, ", ".join(t.identify))
         self.e_stop.delete(0, "end")
         self.e_stop.insert(0, ", ".join(t.stop_words))
+        self.e_skip.delete(0, "end")
+        self.e_skip.insert(0, ", ".join(t.skip_words))
         self.v_merge.set(t.merge_wrapped)
         self.v_to_end.set(t.to_page_end)
         for key, var in self.v_chk.items():
@@ -1015,6 +1022,7 @@ class TemplateEditor(ctk.CTkFrame):
         t.name = self.e_name.get().strip() or t.name
         t.identify = [s.strip() for s in self.e_ident.get().split(",") if s.strip()]
         t.stop_words = [s.strip() for s in self.e_stop.get().split(",") if s.strip()]
+        t.skip_words = [s.strip() for s in self.e_skip.get().split(",") if s.strip()]
         t.merge_wrapped = bool(self.v_merge.get())
         t.to_page_end = bool(self.v_to_end.get())
         chosen = {k: v.get() for k, v in self.v_chk.items()}
