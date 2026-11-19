@@ -3,6 +3,7 @@
     pip install -r requirements.txt pyinstaller customtkinter
     python build_exe.py              # dist\\InvoiceExtractor.exe (v2)
     python build_exe.py renamer      # dist\\InvoiceRenamer.exe (v1 app)
+    python build_exe.py cmd          # dist\\InvoiceExtractorCmd.exe (command line, prints progress)
 
 Each exe is a single file you can copy to any Windows PC; Python does not need to be
 installed there.
@@ -33,15 +34,17 @@ def make_icon(path: Path) -> None:
     im.save(path, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
 
-APPS = {  # python build_exe.py [extractor|renamer]
-    "extractor": ("InvoiceExtractor", "extractor_gui.py", ["templates"]),
-    "renamer": ("InvoiceRenamer", "invoice_renamer_gui.py", []),
+APPS = {  # python build_exe.py [extractor|renamer|cmd]: name, script, bundled folders, console
+    "extractor": ("InvoiceExtractor", "extractor_gui.py", ["templates"], False),
+    "renamer": ("InvoiceRenamer", "invoice_renamer_gui.py", [], False),
+    # no window: runs in cmd / Task Scheduler and prints each file (the app exe prints nothing)
+    "cmd": ("InvoiceExtractorCmd", "extractor.py", [], True),
 }
 
 
 def main() -> int:
     which = sys.argv[1] if len(sys.argv) > 1 else "extractor"
-    name, script, folders = APPS[which]
+    name, script, folders, console = APPS[which]
     ico = HERE / "app.ico"
     make_icon(ico)
     extra = []
@@ -49,7 +52,7 @@ def main() -> int:
         extra += ["--add-data", f"{HERE / folder};{folder}"]
     cmd = [
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
-        "--onefile", "--windowed", "--name", name, *extra,
+        "--onefile", "--console" if console else "--windowed", "--name", name, *extra,
         "--icon", str(ico), "--add-data", f"{ico};.",
         "--collect-data", "rapidocr",          # OCR models + config files
         "--collect-submodules", "rapidocr",

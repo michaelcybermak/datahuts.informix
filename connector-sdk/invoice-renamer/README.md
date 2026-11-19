@@ -85,7 +85,11 @@ next run picks the file up again, since it still has no CSV.
 Command line (also what the exe does when started with arguments):
 
     python extractor.py "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30
-    InvoiceExtractor.exe "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30
+    InvoiceExtractorCmd.exe "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30
+
+`InvoiceExtractorCmd.exe` (`python build_exe.py cmd`) is the console version: it prints each
+file and a summary, and says so when every file already has its CSV. `InvoiceExtractor.exe`
+also accepts these arguments but, being a window app, prints nothing in cmd.
 
 Limits: an invoice scanned as separate image files (one per page) is treated as separate
 invoices; scan multi-page invoices to one PDF.

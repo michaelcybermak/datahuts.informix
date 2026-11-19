@@ -792,12 +792,23 @@ def main(argv=None) -> int:
     if not templates:
         log.error("No templates in %s - create one in the app first.", args.templates)
         return 2
+    if not folder.is_dir():
+        log.error("Folder not found: %s", folder)
+        return 2
+    log.info("Reading %s -> %s (%d templates)", folder, out_dir, len(templates))
+    if args.watch:
+        log.info("Watching every %g s - Ctrl+C to stop", args.watch)
     ocr = OcrEngine()
     failed: set[Path] = set()
+    first = True
     while True:
-        for p in pending_files(folder, out_dir, args.prefix, args.settle):
-            if p in failed:
-                continue
+        todo = [p for p in pending_files(folder, out_dir, args.prefix, args.settle) if p not in failed]
+        if first and not todo:
+            log.info("Nothing new: every file already has its CSV in %s "
+                     "(delete a CSV to extract that file again).", out_dir)
+        first = False
+        counts: dict[str, int] = {}
+        for p in todo:
             try:
                 row = process_file(p, templates, ocr, out_dir, args.dry_run)
             except Exception as e:
@@ -813,6 +824,9 @@ def main(argv=None) -> int:
                     log.info("   row: %s", r)
             if not args.dry_run:
                 write_log(Path(args.log_dir), row)
+            counts[row["status"]] = counts.get(row["status"], 0) + 1
+        if counts:
+            log.info("Done: %s", ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
         if not args.watch:
             break
         try:
