@@ -512,6 +512,12 @@ def apply_template(t: Template, words: list[Word], more_pages: list[list[Word]] 
             for r in rows:
                 r["page"] = n
             first = cols[0].name
+            while rows and rows[0].get("_cont"):
+                cont = rows.pop(0)
+                if n > 1 and res.rows:  # page 1 has no item before it: dropped
+                    for c in cols:
+                        if c.type == "text" and cont[c.name]:
+                            res.rows[-1][c.name] = f"{res.rows[-1][c.name]} {cont[c.name]}".strip()
             if res.rows and res.rows[-1].get("_split") and rows and rows[0][first]:
                 # a row split by the page break: its number and the rest are on this page
                 top_row, cont = res.rows[-1], rows.pop(0)
@@ -609,6 +615,15 @@ def _table_rows(t: Template, cols: list[Region], words, dx, top, bottom) -> tupl
 
     def merge(row, y1, close):
         nonlocal last_bottom
+        if t.merge_wrapped and not rows and last_bottom is None and any(
+                any(ch.isalnum() for ch in row[c.name]) for c in cols if c.type == "text"):
+            # wrapped text at the top of the page, before its first row: the rest of the
+            # previous page's last item (joined in apply_template)
+            rows.append({**row, "_cont": True})
+            last_bottom = y1
+            return
+        if rows and rows[-1].get("_cont"):
+            close = True  # more continuation lines right under it
         if t.merge_wrapped and rows and close:
             for c in cols:
                 if c.type == "text" and row[c.name]:

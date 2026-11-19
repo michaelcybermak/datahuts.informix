@@ -40,6 +40,8 @@ templates are installed on first start.
   values whose position changes with the number of lines.
 - A row the printer split over the page break (values at the bottom of one page, its number
   at the top of the next) is joined back into one row.
+  Wrapped lines at the top of a page, before its first numbered row (e.g. the codes line
+  of the previous page's last item), are added to that last item.
 - Lines with nothing in the first column, or (when the table has number/amount/date columns)
   nothing in any of those, are not new rows: they are wrapped text of the row above, or
   stamps, notes and page footers.
