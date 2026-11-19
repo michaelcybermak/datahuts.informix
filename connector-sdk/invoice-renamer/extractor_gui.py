@@ -458,10 +458,16 @@ class TemplateEditor(ctk.CTkFrame):
             var.set((t.line_check or {}).get(key) or "—")
         self.refresh_regions()
         self._show_region(None)
-        if t.sample and Path(t.sample).exists() and (self.page is None or self.page_path != t.sample):
-            self.open_sample(t.sample)
+        if t.sample and Path(t.sample).exists():
+            if self.page is None or self.page_path != t.sample:
+                self._clear_page("Loading this template's sample invoice…")
+                self.open_sample(t.sample)
+            else:
+                self.redraw()
         else:
-            self.redraw()
+            self._clear_page("No sample invoice is saved with this template.\n\n"
+                             "Click 'Open sample invoice…' and pick one of this supplier's documents\n"
+                             "to see and edit the boxes.")
         self._set_hint()
 
     def new_template(self):
@@ -503,9 +509,18 @@ class TemplateEditor(ctk.CTkFrame):
         self._set_hint()
 
     # ---------------- sample page
+    def _clear_page(self, message: str):
+        """Forget the sample on screen (it belongs to another template) and show a message."""
+        self._load_seq = getattr(self, "_load_seq", 0) + 1  # a load still running is now stale
+        self.loading = False
+        self.page, self.photo, self.pages = None, None, {}
+        self.page_index = self.page_total = 0
+        self.page_path = ""
+        self._canvas_msg = message
+        self._show_pageno()
+        self.redraw()
+
     def open_sample(self, path: str | None = None):
-        if self.loading:
-            return
         if path is None:
             path = filedialog.askopenfilename(
                 parent=self, title="Open a sample invoice",
@@ -514,6 +529,12 @@ class TemplateEditor(ctk.CTkFrame):
                            ("All files", "*.*")])
             if not path:
                 return
+        self._load_seq = seq = getattr(self, "_load_seq", 0) + 1  # the newest request wins
+        cached = self.app.cache.setdefault("samples", {}).get(path)
+        if cached:  # read before: show it at once, with the other pages already read
+            self._sample_loaded(path, cached[0], None, seq)
+            self.pages.update(cached[1])
+            return
         self.loading = True
         self.hint.configure(text="Reading the sample invoice (OCR)… this takes a few seconds.")
 
@@ -523,15 +544,20 @@ class TemplateEditor(ctk.CTkFrame):
                     self.app.cache["ocr"] = ex.OcrEngine()
                 page = ex.load_page(Path(path), self.app.cache["ocr"])
                 page.total = ex.page_count(Path(path))
-                self.after(0, lambda: self._sample_loaded(path, page, None))
+                self.after(0, lambda: self._sample_loaded(path, page, None, seq))
             except Exception as e:
                 err = f"{type(e).__name__}: {e}"
-                self.after(0, lambda: self._sample_loaded(path, None, err))
+                self.after(0, lambda: self._sample_loaded(path, None, err, seq))
 
         threading.Thread(target=work, daemon=True).start()
 
-    def _sample_loaded(self, path, page, err):
+    def _sample_loaded(self, path, page, err, seq=None):
+        if page is not None:  # keep it, even if no longer wanted, so switching back is instant
+            self.app.cache.setdefault("samples", {}).setdefault(path, (page, {}))
+        if seq is not None and seq != getattr(self, "_load_seq", seq):
+            return  # another template or sample was chosen meanwhile
         self.loading = False
+        self._canvas_msg = None
         if err:
             messagebox.showerror(APP_NAME, f"Could not read the sample:\n{err}", parent=self)
             self._set_hint()
@@ -562,13 +588,19 @@ class TemplateEditor(ctk.CTkFrame):
             self.update_idletasks()
             try:
                 first = self.pages[0]
-                self.pages[i] = ex.load_page(Path(self.page_path), self.app.cache.get("ocr"), index=i,
+                self.pages[i] = self.app.cache.setdefault("samples", {}).get(
+                    self.page_path, (None, {}))[1].get(i) or ex.load_page(Path(self.page_path), self.app.cache.get("ocr"), index=i,
                                              rotation=first.rotation if first.source == "ocr" else None,
                                              ref_size=first.image.size)
             finally:
                 self.configure(cursor="")
                 self._set_hint()
         return self.pages[i]
+
+    def _remember_pages(self):
+        entry = self.app.cache.setdefault("samples", {}).get(self.page_path)
+        if entry:
+            entry[1].update({k: v for k, v in self.pages.items() if k})
 
     def show_page(self, i: int):
         if self.page is None or not 0 <= i < self.page_total:
@@ -579,6 +611,7 @@ class TemplateEditor(ctk.CTkFrame):
             messagebox.showerror(APP_NAME, f"Could not read page {i + 1}:\n{e}", parent=self)
             return
         self.page_index = i
+        self._remember_pages()
         self._show_pageno()
         self.set_zoom(0 if self._auto_fit_on() else 1)
         self.refresh_regions(keep=self.sel)
@@ -656,6 +689,10 @@ class TemplateEditor(ctk.CTkFrame):
         c = self.canvas
         c.delete("all")
         if self.page is None or self.photo is None:
+            if getattr(self, "_canvas_msg", None):
+                c.create_text(30, 30, anchor="nw", fill="#8a8f98", font=("Segoe UI", 13),
+                              text=self._canvas_msg)
+                return
             c.create_text(30, 30, anchor="nw", fill="#8a8f98", font=("Segoe UI", 13),
                           text="Open a sample invoice to start drawing.\n\n"
                                "1. Choose Field, drag a box around a header value (e.g. the invoice number).\n"

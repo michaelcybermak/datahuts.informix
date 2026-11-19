@@ -78,6 +78,8 @@ class OcrEngine:
         logging.getLogger("RapidOCR").setLevel(logging.ERROR)
         self.engine = RapidOCR()
         logging.getLogger("RapidOCR").setLevel(logging.ERROR)
+        import threading
+        self._lock = threading.RLock()  # the app's editor and a run may share the engine
 
     def _small(self, img: Image.Image, side: int) -> np.ndarray:
         g = ImageOps.autocontrast(img.convert("L"), cutoff=1)
@@ -85,6 +87,10 @@ class OcrEngine:
         return np.array(g.convert("RGB"))
 
     def orientation(self, img: Image.Image) -> int:
+        with self._lock:
+            return self._orientation(img)
+
+    def _orientation(self, img: Image.Image) -> int:
         """Degrees (counter-clockwise) to turn a page so its text is upright: 0, 90 or 270.
 
         Text boxes found on a sideways scan are tall instead of wide. Which way it lies is
@@ -108,6 +114,10 @@ class OcrEngine:
         return max((90, 270), key=real_words)
 
     def words(self, img: Image.Image) -> list[Word]:
+        with self._lock:
+            return self._words(img)
+
+    def _words(self, img: Image.Image) -> list[Word]:
         gray = ImageOps.autocontrast(img.convert("L"), cutoff=1)
         if max(gray.size) > OCR_MAX_SIDE:
             gray.thumbnail((OCR_MAX_SIDE, OCR_MAX_SIDE))
