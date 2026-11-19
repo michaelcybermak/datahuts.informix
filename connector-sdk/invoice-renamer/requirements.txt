@@ -1,0 +1,7 @@
+rapidocr>=3.10
+onnxruntime
+opencv-python-headless
+pillow
+numpy
+tqdm
+pypdfium2

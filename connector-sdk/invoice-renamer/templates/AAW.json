@@ -1,0 +1,315 @@
+{
+  "name": "AAW",
+  "identify": [
+    "OrderNbr",
+    "Customer P.O."
+  ],
+  "regions": [
+    {
+      "name": "order_number",
+      "kind": "field",
+      "box": [
+        0.855,
+        0.272,
+        0.922,
+        0.294
+      ],
+      "type": "number",
+      "required": true,
+      "pattern": "\\d{5,10}",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "order_type",
+      "kind": "field",
+      "box": [
+        0.925,
+        0.272,
+        0.975,
+        0.294
+      ],
+      "type": "text",
+      "required": true,
+      "pattern": "^M[A-Z]$",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "invoice_number",
+      "kind": "field",
+      "box": [
+        0.855,
+        0.302,
+        0.922,
+        0.324
+      ],
+      "type": "number",
+      "required": true,
+      "pattern": "\\d{5,10}",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "invoice_date",
+      "kind": "field",
+      "box": [
+        0.85,
+        0.244,
+        0.96,
+        0.262
+      ],
+      "type": "date",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "request_date",
+      "kind": "field",
+      "box": [
+        0.85,
+        0.229,
+        0.96,
+        0.246
+      ],
+      "type": "date",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "customer",
+      "kind": "field",
+      "box": [
+        0.85,
+        0.259,
+        0.96,
+        0.276
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "customer_po",
+      "kind": "field",
+      "box": [
+        0.755,
+        0.168,
+        0.95,
+        0.188
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "sold_to",
+      "kind": "field",
+      "box": [
+        0.025,
+        0.228,
+        0.3,
+        0.246
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "item",
+      "kind": "column",
+      "box": [
+        0.025,
+        0.368,
+        0.1,
+        0.73
+      ],
+      "type": "text",
+      "required": true,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "lot",
+      "kind": "column",
+      "box": [
+        0.1,
+        0.368,
+        0.2,
+        0.73
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "lot_exp",
+      "kind": "column",
+      "box": [
+        0.2,
+        0.368,
+        0.31,
+        0.73
+      ],
+      "type": "date",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "description",
+      "kind": "column",
+      "box": [
+        0.36,
+        0.368,
+        0.62,
+        0.73
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "um",
+      "kind": "column",
+      "box": [
+        0.62,
+        0.368,
+        0.695,
+        0.73
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "quantity",
+      "kind": "column",
+      "box": [
+        0.695,
+        0.368,
+        0.755,
+        0.73
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "price",
+      "kind": "column",
+      "box": [
+        0.755,
+        0.368,
+        0.84,
+        0.73
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "amount",
+      "kind": "column",
+      "box": [
+        0.84,
+        0.368,
+        0.96,
+        0.73
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    }
+  ],
+  "stop_words": [
+    "Total Amount",
+    "ZERO KD"
+  ],
+  "merge_wrapped": true,
+  "to_page_end": true,
+  "line_check": null,
+  "anchor": {
+    "text": "OrderNbr",
+    "x": 0.7449838187702266,
+    "y": 0.276
+  },
+  "table_head": {
+    "words": [
+      {
+        "text": "Item#",
+        "x": 0.0311
+      },
+      {
+        "text": "Lot Num l",
+        "x": 0.0906
+      },
+      {
+        "text": "LotExp.",
+        "x": 0.2071
+      },
+      {
+        "text": "IStoragel Case I",
+        "x": 0.2861
+      },
+      {
+        "text": "Description",
+        "x": 0.4712
+      },
+      {
+        "text": "I UM Quantity 1",
+        "x": 0.6369
+      },
+      {
+        "text": "Price",
+        "x": 0.7819
+      },
+      {
+        "text": "Amount",
+        "x": 0.8699
+      }
+    ],
+    "y": 0.351
+  },
+  "sample": ""
+}

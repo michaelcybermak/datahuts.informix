@@ -1,0 +1,310 @@
+{
+  "name": "Carrefour LPO",
+  "identify": [
+    "Carrefour",
+    "MAJID AL FUTTAIM"
+  ],
+  "regions": [
+    {
+      "name": "order_number",
+      "kind": "field",
+      "box": [
+        0.555,
+        0.222,
+        0.632,
+        0.249
+      ],
+      "type": "number",
+      "required": true,
+      "pattern": "\\d{8}",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "order_date",
+      "kind": "field",
+      "box": [
+        0.555,
+        0.238,
+        0.632,
+        0.264
+      ],
+      "type": "date",
+      "required": true,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "supplier_code",
+      "kind": "field",
+      "box": [
+        0.7,
+        0.222,
+        0.775,
+        0.249
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "delivered_to",
+      "kind": "field",
+      "box": [
+        0.555,
+        0.28,
+        0.72,
+        0.306
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "delivery_date",
+      "kind": "field",
+      "box": [
+        0.555,
+        0.296,
+        0.632,
+        0.321
+      ],
+      "type": "date",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "deadline",
+      "kind": "field",
+      "box": [
+        0.555,
+        0.311,
+        0.632,
+        0.339
+      ],
+      "type": "date",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "barcode",
+      "kind": "column",
+      "box": [
+        0.01,
+        0.5,
+        0.103,
+        0.525
+      ],
+      "type": "number",
+      "required": true,
+      "pattern": "\\d{8,14}",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "supplier_ref",
+      "kind": "column",
+      "box": [
+        0.103,
+        0.5,
+        0.192,
+        0.525
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "family",
+      "kind": "column",
+      "box": [
+        0.192,
+        0.5,
+        0.23,
+        0.525
+      ],
+      "type": "number",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "description",
+      "kind": "column",
+      "box": [
+        0.23,
+        0.5,
+        0.465,
+        0.525
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "quantity",
+      "kind": "column",
+      "box": [
+        0.465,
+        0.5,
+        0.525,
+        0.525
+      ],
+      "type": "amount",
+      "required": true,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "unit_price",
+      "kind": "column",
+      "box": [
+        0.525,
+        0.5,
+        0.595,
+        0.525
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "line_total",
+      "kind": "column",
+      "box": [
+        0.595,
+        0.5,
+        0.66,
+        0.525
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "lv",
+      "kind": "column",
+      "box": [
+        0.66,
+        0.5,
+        0.687,
+        0.525
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "uom",
+      "kind": "column",
+      "box": [
+        0.687,
+        0.5,
+        0.725,
+        0.525
+      ],
+      "type": "text",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    },
+    {
+      "name": "vat_rate",
+      "kind": "column",
+      "box": [
+        0.725,
+        0.5,
+        0.785,
+        0.525
+      ],
+      "type": "amount",
+      "required": false,
+      "pattern": "",
+      "page": "first",
+      "label": "",
+      "label_pos": null
+    }
+  ],
+  "stop_words": [
+    "NOTE"
+  ],
+  "merge_wrapped": true,
+  "to_page_end": true,
+  "line_check": {
+    "qty": "quantity",
+    "price": "unit_price",
+    "total": "line_total"
+  },
+  "anchor": {
+    "text": "Carrefour",
+    "x": 0.022,
+    "y": 0.09527687296416938
+  },
+  "table_head": {
+    "words": [
+      {
+        "text": "BAR CODE",
+        "x": 0.015
+      },
+      {
+        "text": "SUPPLIER REF",
+        "x": 0.109
+      },
+      {
+        "text": "FAM.",
+        "x": 0.1975
+      },
+      {
+        "text": "ITEM DESCRITION",
+        "x": 0.234
+      },
+      {
+        "text": "I QTY UC |P.PRI B. TAX|TOTAL B. TAX",
+        "x": 0.4435
+      },
+      {
+        "text": "LV TYP UC:VAT RATE",
+        "x": 0.6655
+      }
+    ],
+    "y": 0.4943
+  },
+  "sample": "D:\\Work\\AAW\\New Processes\\FMCG Ordering\\Carrefour LPO\\21000542.PDF"
+}
