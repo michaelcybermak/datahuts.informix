@@ -54,10 +54,10 @@ HEADER_BOX = (0.55, 0.15, 1.00, 0.42)  # tall enough for pages scanned lower dow
 # "OrderNbr - 1651959 MS"   /   "Invoice - 1652117 MS" (not "InvoiceDate")
 ORDER_RE = re.compile(r"Order\s*N\w*\W*?(\d{4,10})(?:\s+([A-Z0-9$]{1,3})\b)?", re.I)
 # Case-sensitive on purpose: the field label is "Invoice", the page title is "INVOICE".
-INVOICE_RE = re.compile(r"\b[Il1]nvo[il1]ce\b(?!\s*Date)\W*?(\d{4,10})(?:\s+([A-Z0-9$]{1,3})\b)?")
+INVOICE_RE = re.compile(r"\b[Il1]nvo[il1f!|]ce\b(?!\s*Date)\W*?(\d{4,10})(?:\s+([A-Z0-9$]{1,3})\b)?")
 # Label-only and value-only patterns, for pairing fragments by position.
 ORDER_LABEL_RE = re.compile(r"Order\s*N\w*", re.I)
-INVOICE_LABEL_RE = re.compile(r"\b[Il1]nvo[il1]ce(?!\s*-?\s*Date)\b", re.I)
+INVOICE_LABEL_RE = re.compile(r"\b[Il1]nvo[il1f!|]ce(?!\s*-?\s*Date)\b", re.I)
 VALUE_RE = re.compile(r"(?<!\d)(\d{4,10})(?!\d)(?:\s*([A-Z0-9$]{1,3})\b)?", re.I)
 
 # Characters OCR commonly reads in place of the intended one on faded scans.
