@@ -71,6 +71,11 @@ re-extracts it. Status per file goes to `C:\RPA\extract_log.csv`:
 | no_template | no template's identify words were found; no CSV |
 | error | the file could not be read; no CSV |
 
+A *No template* file can be turned into a template straight from the Run page: select it and
+click *Create template from this file* (or double-click / right-click it). The Templates page
+opens with a new template and that file already loaded as its sample. Once it is saved, the
+next run picks the file up again, since it still has no CSV.
+
 Command line (also what the exe does when started with arguments):
 
     python extractor.py "D:\Scans" --out "C:\RPA\InvoiceCSV" --watch 30

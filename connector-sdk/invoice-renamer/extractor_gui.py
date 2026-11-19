@@ -470,17 +470,22 @@ class TemplateEditor(ctk.CTkFrame):
                              "to see and edit the boxes.")
         self._set_hint()
 
-    def new_template(self):
+    def new_template(self, sample: str | None = None) -> bool:
+        """Start a new template; with `sample`, that file is opened as its sample at once."""
         if not self._confirm_discard():
-            return
+            return False
         n, names = 1, {t.name for t in self.templates}
         while f"New template {n}" in names:
             n += 1
         self.load_template(ex.Template(f"New template {n}", stop_words=["Total"]))
         self.dirty = True
         self.tlist.selection_clear(0, "end")
-        if self.page is None:
+        if sample:
+            self._clear_page(f"Reading {Path(sample).name}…")
+            self.open_sample(sample)
+        elif self.page is None:
             self.open_sample()
+        return True
 
     def duplicate(self):
         if not self.template:
@@ -1275,7 +1280,8 @@ class RunPage(ctk.CTkFrame):
                                                  ("status", "Status", 100)], "Files.Treeview")
         fframe.grid(row=0, column=0, sticky="nsew")
         self.ftree.bind("<<TreeviewSelect>>", self._pick)
-        self.ftree.bind("<Double-1>", lambda _: self.open_csv())
+        self.ftree.bind("<Double-1>", lambda _: self._double())
+        self.ftree.bind("<Button-3>", self._context)
         acts = ctk.CTkFrame(t_files, fg_color="transparent")
         acts.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         btn = dict(height=32, fg_color=("gray80", "gray25"), hover_color=("gray72", "gray32"),
@@ -1303,6 +1309,9 @@ class RunPage(ctk.CTkFrame):
         self.l_sel.pack(side="left")
         ctk.CTkButton(top, text="Open scan", width=96, height=30, command=self.open_scan).pack(side="right")
         ctk.CTkButton(top, text="Open CSV", width=96, height=30, command=self.open_csv).pack(side="right", padx=8)
+        self.tpl_btn = ctk.CTkButton(top, text="✎  Create template from this file", height=30,
+                                     fg_color=PURPLE, hover_color="#6d4bb0", command=self.make_template)
+        self._tpl_btn_shown = False
         self.hgrid = HeaderGrid(right, None, None)
         self.hgrid.grid(row=1, column=0, sticky="ew", padx=16)
         self.lines = LinesTable(right, None, None)
@@ -1384,7 +1393,45 @@ class RunPage(ctk.CTkFrame):
         self.l_sel.configure(text=row["file"])
         self.hgrid.show(t, res)
         self.lines.show(t, res)
-        self.l_problem.configure(text=row.get("detail", "") or "")
+        detail = row.get("detail", "") or ""
+        none = row["status"] == "no_template"
+        if none:
+            detail = (detail + "\n" if detail else "") + \
+                "No template fits this file. Click 'Create template from this file' to define one with it as the sample."
+        self.l_problem.configure(text=detail)
+        if none and not self._tpl_btn_shown:
+            self.tpl_btn.pack(side="right")
+        elif not none and self._tpl_btn_shown:
+            self.tpl_btn.pack_forget()
+        self._tpl_btn_shown = none
+
+    def _double(self):
+        r = self._selected()
+        if r and r["status"] == "no_template":
+            self.make_template()
+        else:
+            self.open_csv()
+
+    def _context(self, event):
+        iid = self.ftree.identify_row(event.y)
+        if not iid:
+            return
+        self.ftree.selection_set(iid)
+        r = self.rows[int(iid)]
+        m = tk.Menu(self, tearoff=0)
+        m.add_command(label="Create template from this file…", command=self.make_template)
+        m.add_separator()
+        m.add_command(label="Open scan", command=self.open_scan)
+        m.add_command(label="Open CSV", command=self.open_csv,
+                      state="normal" if r.get("_csv") and Path(r["_csv"]).exists() else "disabled")
+        m.tk_popup(event.x_root, event.y_root)
+
+    def make_template(self):
+        r = self._selected()
+        if not r or not Path(r["_path"]).exists():
+            messagebox.showinfo(APP_NAME, "The file is no longer there.", parent=self)
+            return
+        self.app.template_from_file(r["_path"])
 
     def _selected(self) -> dict | None:
         sel = self.ftree.selection()
@@ -1417,6 +1464,9 @@ class RunPage(ctk.CTkFrame):
         self.results.clear()
         self.ftree.delete(*self.ftree.get_children())
         self.stats()
+        if self._tpl_btn_shown:
+            self.tpl_btn.pack_forget()
+            self._tpl_btn_shown = False
 
 
 # =========================================================================== app
@@ -1516,6 +1566,13 @@ class App(ctk.CTk):
         (self.run_page if name == "Run" else self.editor).grid(row=1, column=0, sticky="nsew")
         if name == "Templates":
             self.editor.refresh_list(self.editor.template.name if self.editor.template else None)
+
+    def template_from_file(self, path: str):
+        """Templates page, with a new template whose sample is this file."""
+        prev = self.l_page.cget("text")
+        self.show("Templates")
+        if not self.editor.new_template(sample=path):
+            self.show(prev)
 
     def set_theme(self, mode):
         ctk.set_appearance_mode(mode)
